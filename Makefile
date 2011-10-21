@@ -18,17 +18,29 @@ CFLAGS = \
 SRC = \
 	main.c \
 
+TESTSRC = \
+	dynarr.c \
+	dyntest.c \
+	
 DEPS = 
 OBJ = $(SRC:.c=.o)
+TESTOBJ = $(TESTSRC:.c=.o)
 
-all: $(EXE)
+all: $(EXE) test
 
 $(EXE): $(OBJ)
 	$(CC) -o $(EXE) $(CFLAGS) $(OBJ)
+
+test: $(TESTOBJ)
+	$(CC) -o test $(CFLAGS) $(TESTOBJ)
+	./test
+	rm -f test
 
 $(OBJ) : %.o : %.c $(DEPS)
 	$(CC) -c $(CFLAGS) $< -o $@
 
 clean :
 	rm -f $(OBJ)
+	rm -f $(TESTOBJ)
 	rm -f $(EXE)
+	rm -f test
