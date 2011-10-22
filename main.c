@@ -2,10 +2,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define MODE_NONE		0
+#include "stack.h"
+#include "types.h"
+
+#define STACK_CAP 16
+
+#define MODE_NONE			0
 #define MODE_APPEND_ALL 	1
-#define MODE_DELETE		2
-#define MODE_APPEND		3
+#define MODE_DELETE			2
+#define MODE_APPEND			3
 #define MODE_CONCISE_TABLE	4
 #define MODE_VERBOSE_TABLE	5
 #define MODE_EXTRACT		6
@@ -13,10 +18,13 @@
 void usage(void);
 
 int main(int argc, char **argv) {
+	Stack files;
 	char *archivePath = NULL;
-	char **files = NULL;
 	int c;
 	int mode = MODE_NONE;
+
+	stack_init(&files, STACK_CAP);
+
 	while ((c = getopt(argc, argv, "Adqtvx")) != -1) {
 		switch (c) {
 		case 'A':
@@ -65,6 +73,10 @@ int main(int argc, char **argv) {
 			break;
 		}
 	}
+
+	if (mode == MODE_NONE) {
+		usage();
+	}
 	
 	while (optind < argc) {
 		if (archivePath == NULL) {
@@ -78,13 +90,11 @@ int main(int argc, char **argv) {
 			
 			printf("Archive file: %s\n", archivePath);
 		} else {
-			printf("File: %s\n", argv[optind++]);
+			stack_push(&files, argv[optind++]);
 		}
 	}
 	
-	if (mode == MODE_NONE) {
-		usage();
-	}
+	stack_free(&files);
 }
 
 void usage(void) {

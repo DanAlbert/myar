@@ -16,7 +16,7 @@ BOOL testPut(void);
 BOOL testSwap(void);
 BOOL testRemove(void);
 
-int main(int argc, char** argv)
+void dynarr_test(void)
 {
 	testInit();
 	testFree();
@@ -27,8 +27,6 @@ int main(int argc, char** argv)
 	testPut();
 	testSwap();
 	testRemove();
-	
-	return 0;
 }
 
 BOOL testInit(void) {

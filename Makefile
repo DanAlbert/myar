@@ -16,11 +16,15 @@ CFLAGS = \
 	$(OPTIMIZATION) \
 
 SRC = \
+	dynarr.c \
+	stack.c \
 	main.c \
 
 TESTSRC = \
 	dynarr.c \
 	dyntest.c \
+	stack.c \
+	test.c \
 	
 DEPS = 
 OBJ = $(SRC:.c=.o)
