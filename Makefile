@@ -16,16 +16,13 @@ CFLAGS = \
 	$(OPTIMIZATION) \
 
 SRC = \
-	dynarr.c \
-	stack.c \
+	list.c \
+	myar.c \
 	main.c \
 
 TESTSRC = \
 	list.c \
 	test.c \
-	dynarr.c \
-	dyntest.c \
-	stack.c \
 	
 DEPS = 
 OBJ = $(SRC:.c=.o)
@@ -39,7 +36,6 @@ $(EXE): $(OBJ)
 test: $(TESTOBJ)
 	$(CC) -o test $(CFLAGS) $(TESTOBJ)
 	./test
-	make cleantest
 
 $(OBJ) : %.o : %.c $(DEPS)
 	$(CC) -c $(CFLAGS) $< -o $@

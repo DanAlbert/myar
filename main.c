@@ -1,11 +1,11 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-#include "stack.h"
+#include "list.h"
 #include "types.h"
-
-#define STACK_CAP 16
 
 #define MODE_NONE			0
 #define MODE_APPEND_ALL 	1
@@ -15,15 +15,28 @@
 #define MODE_VERBOSE_TABLE	5
 #define MODE_EXTRACT		6
 
+void string_copy(void **dst, void *src) {
+	assert(src);
+	assert(dst);
+
+	if (*dst != NULL) {
+		free(*dst);
+	}
+
+	*dst = (void *)malloc((strlen((char *)src) + 1) * sizeof(char));
+	strcpy((char *)*dst, (char *)src);
+	assert(!strcmp((char *)*dst, src));
+}
+
 void usage(void);
 
 int main(int argc, char **argv) {
-	Stack files;
+	struct List files;
 	char *archivePath = NULL;
 	int c;
 	int mode = MODE_NONE;
 
-	stack_init(&files, STACK_CAP);
+	list_init(&files, string_copy, free);
 
 	while ((c = getopt(argc, argv, "Adqtvx")) != -1) {
 		switch (c) {
@@ -90,11 +103,13 @@ int main(int argc, char **argv) {
 			
 			printf("Archive file: %s\n", archivePath);
 		} else {
-			stack_push(&files, argv[optind++]);
+			list_add_back(&files, argv[optind++]);
 		}
 	}
 	
-	stack_free(&files);
+	list_free(&files);
+
+	return 0;
 }
 
 void usage(void) {

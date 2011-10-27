@@ -1,7 +1,5 @@
 #include <assert.h>
-
 #include "list.h"
-
 #include "string.h"
 
 struct Node *_allocate_node(void);
@@ -353,7 +351,6 @@ void _list_test_size(void) {
 
 void _list_test_get(void) {
 	struct List list;
-	char *str;
 
 	list_init(&list, copy, release);
 

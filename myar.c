@@ -1,3 +1,8 @@
+#include <sys/stat.h>
+#include <assert.h>
+#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>
 #include "myar.h"
 
 #define DEFAULT_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
@@ -6,6 +11,13 @@
 // ar.fd needs to be closed somehow
 // load file data
 // list test
+
+void _ar_file_copy(void **dst, void *src);
+void _ar_file_release(void *res);
+
+void ar_init(struct ar *a) {
+	list_init(&a->files, _ar_file_copy, _ar_file_release);
+}
 
 BOOL ar_open(struct ar *a, const char *path) {
 	struct stat status;
@@ -41,6 +53,8 @@ BOOL ar_open(struct ar *a, const char *path) {
 	}
 
 	_ar_scan(a);
+
+	return TRUE;
 }
 
 BOOL _ar_check_global_hdr(struct ar *a) {
@@ -66,20 +80,19 @@ BOOL _ar_check_global_hdr(struct ar *a) {
 }
 
 BOOL _ar_scan(struct ar *a) {
-	struct ar_file* file;
-
 	assert(a);
 	assert(a->fd >= 0);
 
 	// Set file position to the first file hdr
 	lseek(a->fd, SARMAG, SEEK_SET);
 	_ar_load_file(a);
+
+	return FALSE;
 }
 
 // Asumes file pointer in fd is at the beginning of a file hdr
 BOOL _ar_load_file(struct ar *a) {
 	struct ar_file* file;
-
 	assert(a);
 	assert(a->fd >= 0);
 
@@ -89,32 +102,24 @@ BOOL _ar_load_file(struct ar *a) {
 		return FALSE;
 	}
 
-	if (!_ar_load_hdr(a, file->hdr)) {
+	if (!_ar_load_hdr(a, &file->hdr)) {
 		// Report error
 		free(file);
 		return FALSE;
 	}
 
-	file->data = (BYTE *)malloc(file->hdr.ar_size * sizeof(BYTE));
-	if (file->data == NULL) {
+	if (!_ar_load_data(a, file)) {
 		// Report error
 		free(file);
 		return FALSE;
 	}
 
-	if (!_ar_load_file_data(a, file->data)) {
-		// Report error
-		free(file->data);
-		free(file);
-		return FALSE;
-	}
-
-	list_add(a->files, file);
+	list_add_back(&a->files, (void *)file);
 
 	return TRUE;
 }
 
-BOOL ar_load_file_hdr(struct ar *a, struct ar_hdr *hdr) {
+BOOL _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 	assert(a);
 	assert(a->fd >= 0);
 	assert(hdr);
@@ -124,12 +129,59 @@ BOOL ar_load_file_hdr(struct ar *a, struct ar_hdr *hdr) {
 		return FALSE;
 	}
 
-	if (memcpy(hdr->ar_fmag, ARFMAG)) {
+	if (memcmp(hdr->ar_fmag, ARFMAG, SARFMAG)) {
 		// Magic number incorrect
 		// Repoprt error
 		return FALSE;
 	}
 
 	return TRUE;
+}
+
+BOOL _ar_load_data(struct ar *a, struct ar_file *file) {
+	int data_size;
+
+	assert(a);
+	assert(a->fd >= 0);
+	assert(file);
+
+	if (file->data != NULL) {
+		free(file->data);
+	}
+
+	data_size = atoi(file->hdr.ar_size);
+	file->data = (BYTE *)malloc(data_size * sizeof(BYTE));
+	if (file->data == NULL) {
+		// Report error
+		return FALSE;
+	}
+
+	if (read(a->fd, file->data, data_size) == -1) {
+		// Report error
+		free(file->data);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+void _ar_file_copy(void **dst, void *src) {
+	assert(dst);
+	assert(src);
+
+	*dst = (struct ar_file *)malloc(sizeof(struct ar_file));
+	assert(*dst);
+
+	memcpy(*dst, src, sizeof(struct ar_file));
+}
+
+void _ar_file_release(void *res) {
+	if (res != NULL) {
+		if (((struct ar_file *)res)->data != NULL) {
+			free(((struct ar_file *)res)->data);
+		}
+
+		free(res);
+	}
 }
 
