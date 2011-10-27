@@ -1,6 +1,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include "myar.h"
@@ -29,12 +30,14 @@ BOOL ar_open(struct ar *a, const char *path) {
 	err = stat(path, &status);
 	if (err != 0) {
 		// Report error
+		fprintf(stderr, "File (%s) does not exist\n", path);
 		return FALSE;
 	}
 
-	a->fd = open(path, O_CREAT | DEFAULT_PERMS);
+	a->fd = open(path, 0);//, O_CREAT | DEFAULT_PERMS);
 	if (a->fd == -1) {
 		// Report error
+		fprintf(stderr, "File (%s) could not be opened\n", path);
 		return FALSE;
 	}
 
@@ -42,11 +45,13 @@ BOOL ar_open(struct ar *a, const char *path) {
 
 	if (!_ar_check_global_hdr(a)) {
 		// Report error
+		fprintf(stderr, "Bad global header\n", path);
 
 		// Clean up
 		err = close(a->fd);
 		if (err == -1) {
 			// Report error
+			fprintf(stderr, "File (%s) could not be closed\n", path);
 		}
 
 		return FALSE;
@@ -80,17 +85,26 @@ BOOL _ar_check_global_hdr(struct ar *a) {
 }
 
 BOOL _ar_scan(struct ar *a) {
+	off_t file_size;
+
 	assert(a);
 	assert(a->fd >= 0);
 
+	file_size = lseek(a->fd, 0, SEEK_END);
+
 	// Set file position to the first file hdr
 	lseek(a->fd, SARMAG, SEEK_SET);
-	_ar_load_file(a);
 
-	return FALSE;
+	while (lseek(a->fd, 0, SEEK_CUR) < file_size - 1) {
+		if (_ar_load_file(a) == FALSE) {
+			return FALSE;
+		}
+	}
+
+	return TRUE;
 }
 
-// Asumes file pointer in fd is at the beginning of a file hdr
+// Assumes file pointer in fd is at the beginning of a file hdr
 BOOL _ar_load_file(struct ar *a) {
 	struct ar_file* file;
 	assert(a);

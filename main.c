@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "list.h"
+#include "myar.h"
 #include "types.h"
 
 #define MODE_NONE			0
@@ -30,13 +31,13 @@ void string_copy(void **dst, void *src) {
 
 void usage(void);
 
+void verbose_table(const char *path);
+
 int main(int argc, char **argv) {
 	struct List files;
-	char *archivePath = NULL;
+	char *archive_path = NULL;
 	int c;
 	int mode = MODE_NONE;
-
-	list_init(&files, string_copy, free);
 
 	while ((c = getopt(argc, argv, "Adqtvx")) != -1) {
 		switch (c) {
@@ -91,25 +92,49 @@ int main(int argc, char **argv) {
 		usage();
 	}
 	
+	list_init(&files, string_copy, free);
+
 	while (optind < argc) {
-		if (archivePath == NULL) {
-			archivePath = (char*)malloc((strlen(argv[optind]) * sizeof(char)) + 1);
-			if (archivePath == NULL) {
+		if (archive_path == NULL) {
+			archive_path = (char*)malloc((strlen(argv[optind]) * sizeof(char)) + 1);
+			if (archive_path == NULL) {
 				perror(NULL);
 				exit(0);
 			}
 			
-			strcpy(archivePath, argv[optind++]);
-			
-			printf("Archive file: %s\n", archivePath);
+			strcpy(archive_path, argv[optind++]);
 		} else {
 			list_add_back(&files, argv[optind++]);
 		}
+	}
+
+	switch (mode) {
+	case MODE_VERBOSE_TABLE:
+		verbose_table(archive_path);
+		break;
 	}
 	
 	list_free(&files);
 
 	return 0;
+}
+
+void verbose_table(const char *path) {
+	struct ar a;
+
+	ar_init(&a);
+	if (ar_open(&a, path) == FALSE) {
+		printf("Fail\n");
+	} else {
+		int i;
+		for (i = 0; i < list_size(&a.files); i++) {
+			char name[17];
+			memcpy(name, ((struct ar_file *)list_get(&a.files, i))->hdr.ar_name, 16);
+			name[16] = '\0';
+
+			printf("%s\n", name);
+		}
+	}
 }
 
 void usage(void) {
