@@ -77,6 +77,65 @@ bool ar_close(struct ar *a) {
 	return true;
 }
 
+size_t ar_nfiles(struct ar *a) {
+	return list_size(&a->files);
+}
+
+struct ar_file *ar_get_file(struct ar *a, size_t i) {
+	return (struct ar_file *)list_get(&a->files, i);
+}
+
+//BOOL ar_add_file(struct ar *a, const char *path);
+//BOOL ar_remove_file(struct ar *a, const char *name);
+//BOOL ar_extract_file(struct ar *a, const char *name);
+
+void ar_print(struct ar *a) {
+	int i;
+	for (i = 0; i < ar_nfiles(a); i++) {
+		struct ar_hdr *hdr;
+		char name[17];
+		char date_str[13];
+		char uid_str[7];
+		char gid_str[7];
+		char mode_str[9];
+		char perm_str[10];
+		char size_str[11];
+		int date;
+		int uid;
+		int gid;
+		int mode;
+		int size;
+		
+		hdr = &ar_get_file(a, i)->hdr;
+
+		strncpy(name, hdr->ar_name, 17);
+		strncpy(date_str, hdr->ar_date, 13);
+		strncpy(uid_str, hdr->ar_uid, 7);
+		strncpy(gid_str, hdr->ar_gid, 7);
+		strncpy(mode_str, hdr->ar_mode, 9);
+		strncpy(size_str, hdr->ar_size, 11);
+
+		date = strtol(date_str, NULL, 10);
+		uid = strtol(uid_str, NULL, 10);
+		gid = strtol(gid_str, NULL, 10);
+		mode = strtol(mode_str, NULL, 8);
+		size = strtol(size_str, NULL, 10);
+
+		perm_str[0] = (mode & S_IRUSR) ? 'r' : '-';
+		perm_str[1] = (mode & S_IWUSR) ? 'w' : '-';
+		perm_str[2] = (mode & S_IXUSR) ? 'x' : '-';
+		perm_str[3] = (mode & S_IRGRP) ? 'r' : '-';
+		perm_str[4] = (mode & S_IWGRP) ? 'w' : '-';
+		perm_str[5] = (mode & S_IXGRP) ? 'x' : '-';
+		perm_str[6] = (mode & S_IROTH) ? 'r' : '-';
+		perm_str[7] = (mode & S_IWOTH) ? 'w' : '-';
+		perm_str[8] = (mode & S_IXOTH) ? 'x' : '-';
+		perm_str[9] = '\0';
+
+		printf("%s\t%d/%d\t%d\t%s\n", perm_str, uid, gid, size, name);
+	}
+}
+
 bool _ar_check_global_hdr(struct ar *a) {
 	char hdr[SARMAG];
 	int init_pos;

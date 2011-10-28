@@ -125,14 +125,15 @@ void verbose_table(const char *path) {
 	if (ar_open(&a, path) == false) {
 		printf("Fail\n");
 	} else {
-		int i;
+		ar_print(&a);
+		/*int i;
 		for (i = 0; i < list_size(&a.files); i++) {
 			char name[17];
 			memcpy(name, ((struct ar_file *)list_get(&a.files, i))->hdr.ar_name, 16);
 			name[16] = '\0';
 
 			printf("%s\n", name);
-		}
+		}*/
 	}
 
 	ar_free(&a);
