@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "myar.h"
 
@@ -93,6 +94,7 @@ void ar_print(struct ar *a) {
 	int i;
 	for (i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
+		char *ctime_str;
 		char name[17];
 		char date_str[13];
 		char uid_str[7];
@@ -100,7 +102,7 @@ void ar_print(struct ar *a) {
 		char mode_str[9];
 		char perm_str[10];
 		char size_str[11];
-		int date;
+		time_t date;
 		int uid;
 		int gid;
 		int mode;
@@ -108,13 +110,22 @@ void ar_print(struct ar *a) {
 		
 		hdr = &ar_get_file(a, i)->hdr;
 
-		strncpy(name, hdr->ar_name, 17);
-		strncpy(date_str, hdr->ar_date, 13);
-		strncpy(uid_str, hdr->ar_uid, 7);
-		strncpy(gid_str, hdr->ar_gid, 7);
-		strncpy(mode_str, hdr->ar_mode, 9);
-		strncpy(size_str, hdr->ar_size, 11);
+		memset(name, '\0', 17 * sizeof(char));
+		memset(date_str, '\0', 13 * sizeof(char));
+		memset(uid_str, '\0', 7 * sizeof(char));
+		memset(gid_str, '\0', 7 * sizeof(char));
+		memset(mode_str, '\0', 9 * sizeof(char));
+		memset(perm_str, '\0', 10 * sizeof(char));
+		memset(size_str, '\0', 11 * sizeof(char));
 
+		strncpy(name, hdr->ar_name, 16);
+		strncpy(date_str, hdr->ar_date, 12);
+		strncpy(uid_str, hdr->ar_uid, 6);
+		strncpy(gid_str, hdr->ar_gid, 6);
+		strncpy(mode_str, hdr->ar_mode, 8);
+		strncpy(size_str, hdr->ar_size, 10);
+
+		*rindex(name, '/') = '\0'; // Replace the terminating / with a null
 		date = strtol(date_str, NULL, 10);
 		uid = strtol(uid_str, NULL, 10);
 		gid = strtol(gid_str, NULL, 10);
@@ -132,7 +143,9 @@ void ar_print(struct ar *a) {
 		perm_str[8] = (mode & S_IXOTH) ? 'x' : '-';
 		perm_str[9] = '\0';
 
-		printf("%s\t%d/%d\t%d\t%s\n", perm_str, uid, gid, size, name);
+		ctime_str = ctime(&date);
+		*rindex(ctime_str, '\n') = '\0';
+		printf("%s %6d/%-6d %10d %s %s\n", perm_str, uid, gid, size, ctime_str, name);
 	}
 }
 

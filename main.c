@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
 	while (optind < argc) {
 		if (archive_path == NULL) {
-			archive_path = (char*)malloc((strlen(argv[optind]) * sizeof(char)) + 1);
+			archive_path = (char *)malloc((strlen(argv[optind]) + 1) * sizeof(char));
 			if (archive_path == NULL) {
 				perror(NULL);
 				exit(0);
@@ -126,14 +126,6 @@ void verbose_table(const char *path) {
 		printf("Fail\n");
 	} else {
 		ar_print(&a);
-		/*int i;
-		for (i = 0; i < list_size(&a.files); i++) {
-			char name[17];
-			memcpy(name, ((struct ar_file *)list_get(&a.files, i))->hdr.ar_name, 16);
-			name[16] = '\0';
-
-			printf("%s\n", name);
-		}*/
 	}
 
 	ar_free(&a);
