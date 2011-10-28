@@ -6,7 +6,6 @@
 
 #include "list.h"
 #include "myar.h"
-#include "types.h"
 
 #define MODE_NONE			0
 #define MODE_APPEND_ALL 	1
@@ -123,7 +122,7 @@ void verbose_table(const char *path) {
 	struct ar a;
 
 	ar_init(&a);
-	if (ar_open(&a, path) == FALSE) {
+	if (ar_open(&a, path) == false) {
 		printf("Fail\n");
 	} else {
 		int i;
@@ -135,6 +134,8 @@ void verbose_table(const char *path) {
 			printf("%s\n", name);
 		}
 	}
+
+	ar_free(&a);
 }
 
 void usage(void) {
