@@ -31,6 +31,7 @@ void string_copy(void **dst, void *src) {
 void usage(void);
 
 void verbose_table(const char *path);
+void extract(const char *path, struct List *names);
 
 int main(int argc, char **argv) {
 	struct List files;
@@ -115,6 +116,9 @@ int main(int argc, char **argv) {
 	case MODE_VERBOSE_TABLE:
 		verbose_table(archive_path);
 		break;
+	case MODE_EXTRACT:
+		extract(archive_path, &files);
+		break;
 	}
 	
 	list_free(&files);
@@ -127,9 +131,29 @@ void verbose_table(const char *path) {
 
 	ar_init(&a);
 	if (ar_open(&a, path) == false) {
-		printf("Fail\n");
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
 	} else {
 		ar_print(&a);
+	}
+
+	ar_free(&a);
+}
+
+void extract(const char *path, struct List *names) {
+	struct ar a;
+
+	ar_init(&a);
+	if (ar_open(&a, path) == false) {
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
+	} else {
+		int i;
+		for (i = 0; i < list_size(names); i++)
+		{
+			char *name = (char *)list_get(names, i);
+			if (ar_extract_file(&a, name) == false) {
+				fprintf(stderr, "Failed to extract %s from archive\n", name);
+			}
+		}
 	}
 
 	ar_free(&a);

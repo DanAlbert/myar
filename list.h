@@ -13,7 +13,7 @@ struct List {
 	struct Node *head;
 	struct Node *tail;
 	size_t size;
-	void (*copy)(void *, void *);
+	void (*copy)(void **, void *);
 	void (*release)(void *);
 };
 

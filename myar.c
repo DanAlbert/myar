@@ -88,7 +88,32 @@ struct ar_file *ar_get_file(struct ar *a, size_t i) {
 
 //BOOL ar_add_file(struct ar *a, const char *path);
 //BOOL ar_remove_file(struct ar *a, const char *name);
-//BOOL ar_extract_file(struct ar *a, const char *name);
+bool ar_extract_file(struct ar *a, const char *name) {
+	int i;
+	for (i = 0; i < ar_nfiles(a); i++) {
+		struct ar_file * file = ar_get_file(a, i);
+		if (!memcmp(name, file->hdr.ar_name, strlen(name))) {
+			int fd = open(name, O_CREAT | O_TRUNC | DEFAULT_PERMS);
+			int size;
+			char size_str[11];
+
+			if (fd < 0) {
+				// Report error
+				return false;
+			}
+
+			memset(size_str, '\0', 11 * sizeof(char));
+			strncpy(size_str, file->hdr.ar_size, 11);
+			size = strtol(size_str, NULL, 10);
+
+			write(fd, file->data, size);
+
+			close(fd);
+
+			return true;
+		}
+	}
+}
 
 void ar_print(struct ar *a) {
 	int i;
@@ -200,7 +225,7 @@ bool _ar_scan(struct ar *a) {
 
 // Assumes file pointer in fd is at the beginning of a file hdr
 bool _ar_load_file(struct ar *a) {
-	struct ar_file* file;
+	struct ar_file *file;
 	assert(a);
 	assert(a->fd >= 0);
 
