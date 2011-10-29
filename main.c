@@ -107,6 +107,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if (archive_path == NULL) {
+		usage();
+	}
+
 	switch (mode) {
 	case MODE_VERBOSE_TABLE:
 		verbose_table(archive_path);
