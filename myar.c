@@ -22,27 +22,26 @@ void ar_init(struct ar *a) {
 }
 
 void ar_free(struct ar *a) {
-	list_free(&a->files);
-
 	if (a->fd >= 0) {
 		ar_close(a);
 	}
+
+	list_free(&a->files);
 }
 
 bool ar_open(struct ar *a, const char *path) {
-	struct stat status;
-	int err;
+	struct stat st;
+	bool create;
 
 	assert(a);
 	assert(path);
 
-	err = stat(path, &status);
-	if (err != 0) {
-		// Report error
-		fprintf(stderr, "File (%s) does not exist\n", path);
-		return false;
+	if (stat(path, &st) == 0) {
+		create = false;
+	} else {
+		create = true;
 	}
-
+	
 	a->fd = open(path, O_RDWR | O_CREAT, DEFAULT_PERMS);
 	if (a->fd == -1) {
 		// Report error
@@ -52,22 +51,65 @@ bool ar_open(struct ar *a, const char *path) {
 
 	lseek(a->fd, 0, SEEK_SET);
 
-	if (!_ar_check_global_hdr(a)) {
-		// Report error
-		fprintf(stderr, "Bad global header\n");
+	if (create == false) {
+		if (!_ar_check_global_hdr(a)) {
+			// Report error
+			fprintf(stderr, "Bad global header\n");
 
-		// Clean up
-		ar_close(a);
+			// Clean up
+			ar_close(a);
 
-		return false;
+			return false;
+		}
+
+		_ar_scan(a);
 	}
-
-	_ar_scan(a);
 
 	return true;
 }
 
 bool ar_close(struct ar *a) {
+	off_t total_sz;
+	int i;
+
+	assert(a);
+	
+	if (a->fd < 0) {
+		return true;
+	}
+
+	lseek(a->fd, 0, SEEK_SET);
+ 
+	total_sz = 0;
+
+	write(a->fd, ARMAG, SARMAG);
+	total_sz += SARMAG;
+	
+	for (i = 0; i < ar_nfiles(a); i++) {
+		struct ar_file *file = ar_get_file(a, i);
+		char size_str[11];
+		off_t block_size = 0;
+		off_t size;
+
+		memset(size_str, '\0', sizeof(size_str));
+		strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
+		size = strtol(size_str, NULL, 10);
+
+		// Write a single new line if we are not on an even byte offset
+		if ((lseek(a->fd, 0, SEEK_CUR) % 2) != 0) {
+			write(a->fd, "\n", sizeof(uint8_t));
+			block_size += sizeof(uint8_t);
+		}
+
+		write(a->fd, &file->hdr, sizeof(struct ar_hdr));
+		block_size += sizeof(struct ar_hdr);
+		write(a->fd, file->data, size); 
+		block_size += size;
+		total_sz += block_size;
+	}
+
+	ftruncate(a->fd, total_sz);
+
 	if (close(a->fd) == -1) {
 		// Report error
 		fprintf(stderr, "File could not be closed\n");
@@ -86,13 +128,58 @@ struct ar_file *ar_get_file(struct ar *a, size_t i) {
 	return (struct ar_file *)list_get(&a->files, i);
 }
 
-//BOOL ar_add_file(struct ar *a, const char *path);
+bool ar_add_file(struct ar *a, const char *path) {
+	struct ar_file file;
+	struct stat st;
+	char name[17];
+	char date[13];
+	char uid[7];
+	char gid[7];
+	char mode[9];
+	char size[11];
+	int fd;
+
+	stat(path, &st);
+
+	fd = open(path, O_RDONLY);
+
+	if (fd < 0) {
+		// Report error
+		return false;
+	}
+
+	// Should strip any path preceding file name
+	snprintf(name, sizeof(name), "%-.15s/", path);
+	memset(rindex(name, '/') + 1, ' ', sizeof(name) - ((rindex(name, '/') + 1) - name) - 1);
+
+	snprintf(date, sizeof(date), "%12u", st.st_mtime);
+	snprintf(uid, sizeof(uid), "%6u", st.st_uid);
+	snprintf(gid, sizeof(gid), "%6u", st.st_gid);
+	snprintf(mode, sizeof(mode), "%8o", st.st_mode);
+	snprintf(size, sizeof(size), "%10u", st.st_size);
+
+	memcpy(file.hdr.ar_name, name, sizeof(file.hdr.ar_name));
+	memcpy(file.hdr.ar_date, date, sizeof(file.hdr.ar_date));
+	memcpy(file.hdr.ar_uid, uid, sizeof(file.hdr.ar_uid));
+	memcpy(file.hdr.ar_gid, gid, sizeof(file.hdr.ar_gid));
+	memcpy(file.hdr.ar_mode, mode, sizeof(file.hdr.ar_mode));
+	memcpy(file.hdr.ar_size, size, sizeof(file.hdr.ar_size));
+	memcpy(file.hdr.ar_fmag, ARFMAG, SARFMAG);
+
+	file.data = (uint8_t *)malloc(st.st_size);
+	read(fd, file.data, st.st_size);
+
+	list_add_back(&a->files, (void *)&file);
+
+	return true;
+}
+
 //BOOL ar_remove_file(struct ar *a, const char *name);
 bool ar_extract_file(struct ar *a, const char *name) {
 	int i;
 	for (i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file * file = ar_get_file(a, i);
-		if (!memcmp(name, file->hdr.ar_name, strlen(name))) {
+		if (memcmp(name, file->hdr.ar_name, strlen(name)) == 0) {
 			struct utimbuf tbuf;
 			char size_str[11];
 			char time_str[13];
@@ -295,7 +382,7 @@ bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 		return false;
 	}
 
-	if (memcmp(hdr->ar_fmag, ARFMAG, SARFMAG)) {
+	if (memcmp(hdr->ar_fmag, ARFMAG, SARFMAG) != 0) {
 		// Magic number incorrect
 		fprintf(stderr, "Magic number mismatch\n");
 		return false;

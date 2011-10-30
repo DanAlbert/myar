@@ -113,6 +113,9 @@ int main(int argc, char **argv) {
 	}
 
 	switch (mode) {
+	case MODE_APPEND:
+		append(archive_path, &files);
+		break;	
 	case MODE_VERBOSE_TABLE:
 		verbose_table(archive_path);
 		break;
@@ -152,6 +155,26 @@ void extract(const char *path, struct List *names) {
 			char *name = (char *)list_get(names, i);
 			if (ar_extract_file(&a, name) == false) {
 				fprintf(stderr, "Failed to extract %s from archive\n", name);
+			}
+		}
+	}
+
+	ar_free(&a);
+}
+
+void append(const char *path, struct List *names) {
+	struct ar a;
+
+	ar_init(&a);
+	if (ar_open(&a, path) == false) {
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
+	} else {
+		int i;
+		for (i = 0; i < list_size(names); i++)
+		{
+			char *name = (char *)list_get(names, i);
+			if (ar_add_file(&a, name) == false) {
+				fprintf(stderr, "Failed to add %s to archive\n", name);
 			}
 		}
 	}
