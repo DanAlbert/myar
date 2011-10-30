@@ -31,6 +31,8 @@ void string_copy(void **dst, void *src) {
 void usage(void);
 
 void verbose_table(const char *path);
+void delete(const char *path, struct List *names);
+void append(const char *path, struct List *names);
 void extract(const char *path, struct List *names);
 
 int main(int argc, char **argv) {
@@ -113,6 +115,9 @@ int main(int argc, char **argv) {
 	}
 
 	switch (mode) {
+	case MODE_DELETE:
+		delete(archive_path, &files);
+		break;
 	case MODE_APPEND:
 		append(archive_path, &files);
 		break;	
@@ -175,6 +180,26 @@ void append(const char *path, struct List *names) {
 			char *name = (char *)list_get(names, i);
 			if (ar_add_file(&a, name) == false) {
 				fprintf(stderr, "Failed to add %s to archive\n", name);
+			}
+		}
+	}
+
+	ar_free(&a);
+}
+
+void delete(const char *path, struct List *names) {
+	struct ar a;
+
+	ar_init(&a);
+	if (ar_open(&a, path) == false) {
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
+	} else {
+		int i;
+		for (i = 0; i < list_size(names); i++)
+		{
+			char *name = (char *)list_get(names, i);
+			if (ar_remove_file(&a, name) == false) {
+				fprintf(stderr, "Failed to remove %s from archive\n", name);
 			}
 		}
 	}

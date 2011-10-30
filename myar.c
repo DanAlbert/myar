@@ -174,7 +174,25 @@ bool ar_add_file(struct ar *a, const char *path) {
 	return true;
 }
 
-//BOOL ar_remove_file(struct ar *a, const char *name);
+bool ar_remove_file(struct ar *a, const char *name) {
+	int i;
+	for (i = 0; i < ar_nfiles(a); i++) {
+		struct ar_file *file = ar_get_file(a, i);
+		char fname[17];
+
+		memset(fname, '\0', sizeof(fname));
+		memcpy(fname, file->hdr.ar_name, sizeof(file->hdr.ar_name));
+		*rindex(fname, '/') = '\0';
+		
+		if (strcmp(fname, name) == 0) {
+			list_remove(&a->files, i);
+			return true;
+		}
+	}
+	
+	return false;
+}
+
 bool ar_extract_file(struct ar *a, const char *name) {
 	int i;
 	for (i = 0; i < ar_nfiles(a); i++) {
