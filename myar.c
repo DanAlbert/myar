@@ -13,7 +13,6 @@
 // TODO:
 // add_file
 // remove_file
-// set time, uid and gid on extract
 
 void _ar_file_copy(void **dst, void *src);
 void _ar_file_release(void *res);
@@ -97,19 +96,29 @@ bool ar_extract_file(struct ar *a, const char *name) {
 			struct utimbuf tbuf;
 			char size_str[11];
 			char time_str[13];
+			char uid_str[7];
+			char gid_str[7];
 			char mode_str[9];
 			time_t modify;
+			uid_t uid;
+			gid_t gid;
 			int fd;
 			int size;
 			int mode;
 
 			memset(size_str, '\0', sizeof(size_str));
 			memset(time_str, '\0', sizeof(time_str));
+			memset(uid_str, '\0', sizeof(uid_str));
+			memset(gid_str, '\0', sizeof(gid_str));
 			memset(mode_str, '\0', sizeof(mode_str));
 			strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
 			strncpy(time_str, file->hdr.ar_date, sizeof(time_str));
+			strncpy(uid_str, file->hdr.ar_uid, sizeof(uid_str));
+			strncpy(gid_str, file->hdr.ar_gid, sizeof(gid_str));
 			strncpy(mode_str, file->hdr.ar_mode, sizeof(mode_str));
 			size = strtol(size_str, NULL, 10);
+			uid = strtol(uid_str, NULL, 10);
+			gid = strtol(gid_str, NULL, 10);
 			modify = strtol(time_str, NULL, 10);
 			mode = strtol(mode_str, NULL, 8);
 			
@@ -123,6 +132,8 @@ bool ar_extract_file(struct ar *a, const char *name) {
 			write(fd, file->data, size);
 
 			close(fd);
+
+			chown(name, uid, gid);
 
 			tbuf.actime = modify;
 			tbuf.modtime = modify;
