@@ -5,14 +5,15 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <utime.h>
 #include "myar.h"
 
 #define DEFAULT_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 
 // TODO:
-// ar.fd needs to be closed somehow
-// load file data
-// list test
+// add_file
+// remove_file
+// set time, uid and gid on extract
 
 void _ar_file_copy(void **dst, void *src);
 void _ar_file_release(void *res);
@@ -43,7 +44,7 @@ bool ar_open(struct ar *a, const char *path) {
 		return false;
 	}
 
-	a->fd = open(path, 0);//, O_CREAT | DEFAULT_PERMS);
+	a->fd = open(path, O_RDWR | O_CREAT, DEFAULT_PERMS);
 	if (a->fd == -1) {
 		// Report error
 		fprintf(stderr, "File (%s) could not be opened\n", path);
@@ -93,22 +94,43 @@ bool ar_extract_file(struct ar *a, const char *name) {
 	for (i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file * file = ar_get_file(a, i);
 		if (!memcmp(name, file->hdr.ar_name, strlen(name))) {
-			int fd = open(name, O_CREAT | O_TRUNC | DEFAULT_PERMS);
-			int size;
+			struct utimbuf tbuf;
 			char size_str[11];
+			char time_str[13];
+			char mode_str[9];
+			time_t modify;
+			int fd;
+			int size;
+			int mode;
+
+			memset(size_str, '\0', sizeof(size_str));
+			memset(time_str, '\0', sizeof(time_str));
+			memset(mode_str, '\0', sizeof(mode_str));
+			strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
+			strncpy(time_str, file->hdr.ar_date, sizeof(time_str));
+			strncpy(mode_str, file->hdr.ar_mode, sizeof(mode_str));
+			size = strtol(size_str, NULL, 10);
+			modify = strtol(time_str, NULL, 10);
+			mode = strtol(mode_str, NULL, 8);
+			
+			fd = creat(name, mode & 0x01ff);
 
 			if (fd < 0) {
 				// Report error
 				return false;
 			}
 
-			memset(size_str, '\0', 11 * sizeof(char));
-			strncpy(size_str, file->hdr.ar_size, 11);
-			size = strtol(size_str, NULL, 10);
-
 			write(fd, file->data, size);
 
 			close(fd);
+
+			tbuf.actime = modify;
+			tbuf.modtime = modify;
+			
+			if (utime(name, &tbuf) == -1) {
+				// Report error
+				return false;
+			}
 
 			return true;
 		}
@@ -135,20 +157,20 @@ void ar_print(struct ar *a) {
 		
 		hdr = &ar_get_file(a, i)->hdr;
 
-		memset(name, '\0', 17 * sizeof(char));
-		memset(date_str, '\0', 13 * sizeof(char));
-		memset(uid_str, '\0', 7 * sizeof(char));
-		memset(gid_str, '\0', 7 * sizeof(char));
-		memset(mode_str, '\0', 9 * sizeof(char));
-		memset(perm_str, '\0', 10 * sizeof(char));
-		memset(size_str, '\0', 11 * sizeof(char));
+		memset(name, '\0', sizeof(name));
+		memset(date_str, '\0', sizeof(date_str));
+		memset(uid_str, '\0', sizeof(uid_str));
+		memset(gid_str, '\0', sizeof(gid_str));
+		memset(mode_str, '\0', sizeof(mode_str));
+		memset(perm_str, '\0', sizeof(perm_str));
+		memset(size_str, '\0', sizeof(size_str));
 
-		strncpy(name, hdr->ar_name, 16);
-		strncpy(date_str, hdr->ar_date, 12);
-		strncpy(uid_str, hdr->ar_uid, 6);
-		strncpy(gid_str, hdr->ar_gid, 6);
-		strncpy(mode_str, hdr->ar_mode, 8);
-		strncpy(size_str, hdr->ar_size, 10);
+		strncpy(name, hdr->ar_name, sizeof(name));
+		strncpy(date_str, hdr->ar_date, sizeof(date_str));
+		strncpy(uid_str, hdr->ar_uid, sizeof(uid_str));
+		strncpy(gid_str, hdr->ar_gid, sizeof(gid_str));
+		strncpy(mode_str, hdr->ar_mode, sizeof(mode_str));
+		strncpy(size_str, hdr->ar_size, sizeof(size_str));
 
 		*rindex(name, '/') = '\0'; // Replace the terminating / with a null
 		date = strtol(date_str, NULL, 10);
