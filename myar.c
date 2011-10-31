@@ -437,6 +437,14 @@ void ar_print_verbose(struct ar *a) {
 	}
 }
 
+/**
+ * @brief Verifies presence and validity of ar file magic number
+ * Preconditions: a is not NULL, a has been opened
+ * Postconditions: File pointer has been returned to its original position
+ *
+ * @param Pointer to ar structure
+ * @return true if magic number is valid, false otherwise
+ */
 bool _ar_check_global_hdr(struct ar *a) {
 	char hdr[SARMAG];
 	int init_pos;
@@ -459,6 +467,14 @@ bool _ar_check_global_hdr(struct ar *a) {
 	return hdr_good;
 }
 
+/**
+ * @brief Loads each file found in the archive
+ * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * Postconditions: All files contained in the archive have been loaded
+ *
+ * @param a Pointer to ar structure
+ * @return true on success, false otherwise
+ */
 bool _ar_scan(struct ar *a) {
 	off_t file_size;
 
@@ -486,7 +502,14 @@ bool _ar_scan(struct ar *a) {
 	return true;
 }
 
-// Assumes file pointer in fd is at the beginning of a file hdr
+/**
+ * @brief Loads file header and data from archive file
+ * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header
+ * Postconditions: File header and data have been loaded
+ *
+ * @param a Pointer to ar structure
+ * @return true on success, false otherwise
+ */
 bool _ar_load_file(struct ar *a) {
 	struct ar_file *file;
 	assert(a);
@@ -515,6 +538,15 @@ bool _ar_load_file(struct ar *a) {
 	return true;
 }
 
+/**
+ * @brief Loads file header from archive file
+ * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, hdr is not NULL
+ * Postconditions: File header has been loaded into hdr
+ *
+ * @param a Pointer to ar structure
+ * @param hdr Pointer to ar_hdr to load data into
+ * @return true on success, false otherwise
+ */
 bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 	assert(a);
 	assert(a->fd >= 0);
@@ -534,6 +566,15 @@ bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 	return true;
 }
 
+/**
+ * @brief Loads file data from archive file
+ * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, file is not NULL
+ * Postconditions: File data has been loaded into file.data
+ *
+ * @param a Pointer to ar structure
+ * @param file Pointer to ar_file to load data into
+ * @return true on success, false otherwise
+ */
 bool _ar_load_data(struct ar *a, struct ar_file *file) {
 	int data_size;
 
@@ -561,6 +602,16 @@ bool _ar_load_data(struct ar *a, struct ar_file *file) {
 	return true;
 }
 
+/**
+ * @brief Copies data from one ar_file to another
+ * Preconditions: dst is not NULL, src is not NULL
+ * Postconditions: Memory has been allocated for *dst, src has been copied to *dst
+ *
+ * @param dst Pointer to pointer to destination ar_file structure
+ * @param src Pointer to source ar_file structure
+ *
+ * @note dst is a pointer to a pointer because this function allocates memory for dst, and C does not allow variables to be passed by reference. It's ugly, I'm sorry. I didn't know we could use C++ data structures until I had already written this god awful data structure.
+ */
 void _ar_file_copy(void **dst, void *src) {
 	assert(dst);
 	assert(src);
@@ -571,6 +622,13 @@ void _ar_file_copy(void **dst, void *src) {
 	memcpy(*dst, src, sizeof(struct ar_file));
 }
 
+/**
+ * @brief Frees all memory used by an ar_file structure
+ * Preconditions: res is not NULL
+ * Postconditions: Memory allocated for file data has been released, memory allocated for res has been released
+ *
+ * @param res Pointer to ar_file structure
+ */
 void _ar_file_release(void *res) {
 	if (res != NULL) {
 		if (((struct ar_file *)res)->data != NULL) {
