@@ -142,6 +142,7 @@ struct ar_file *ar_get_file(struct ar *a, size_t i) {
 bool ar_add_file(struct ar *a, const char *path) {
 	struct ar_file file;
 	struct stat st;
+	char *slash_location;
 	char name[17];
 	char date[13];
 	char uid[7];
@@ -161,7 +162,11 @@ bool ar_add_file(struct ar *a, const char *path) {
 
 	// Should strip any path preceding file name
 	snprintf(name, sizeof(name), "%-.15s/", path);
-	memset(rindex(name, '/') + 1, ' ', sizeof(name) - ((rindex(name, '/') + 1) - name) - 1);
+	slash_location = rindex(name, '/');
+
+	if (slash_location != NULL) {
+		memset(slash_location + 1, ' ', sizeof(name) - (slash_location - name));
+	}
 
 	snprintf(date, sizeof(date), "%12u", st.st_mtime);
 	snprintf(uid, sizeof(uid), "%6u", st.st_uid);
@@ -188,11 +193,15 @@ bool ar_add_file(struct ar *a, const char *path) {
 bool ar_remove_file(struct ar *a, const char *name) {
 	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file *file = ar_get_file(a, i);
+		char *slash_location;
 		char fname[17];
 
 		memset(fname, '\0', sizeof(fname));
 		memcpy(fname, file->hdr.ar_name, sizeof(file->hdr.ar_name));
-		*rindex(fname, '/') = '\0';
+		slash_location = rindex(fname, '/');
+		if (slash_location != NULL) {
+			*slash_location = '\0';
+		}
 		
 		if (strcmp(fname, name) == 0) {
 			list_remove(&a->files, i);
@@ -258,6 +267,7 @@ void ar_print(struct ar *a) {
 	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
 		struct tm *time;
+		char *slash_location;
 		char ftime[SFTIME];
 		char name[17];
 		char date_str[13];
@@ -289,7 +299,11 @@ void ar_print(struct ar *a) {
 		strncpy(mode_str, hdr->ar_mode, sizeof(mode_str));
 		strncpy(size_str, hdr->ar_size, sizeof(size_str));
 
-		*rindex(name, '/') = '\0'; // Replace the terminating / with a null
+		slash_location = rindex(name, '/');
+		if (slash_location != NULL) {
+			*slash_location = '\0'; // Replace the terminating / with a null
+		}
+
 		date = strtol(date_str, NULL, 10);
 		uid = strtol(uid_str, NULL, 10);
 		gid = strtol(gid_str, NULL, 10);
