@@ -12,6 +12,7 @@
 #define DEFAULT_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 #define PERM_MASK 0x01ff
 #define BLOCK_SIZE 4096
+#define SFTIME 18
 
 void _ar_file_copy(void **dst, void *src);
 void _ar_file_release(void *res);
@@ -256,7 +257,8 @@ bool ar_extract_file(struct ar *a, const char *name) {
 void ar_print(struct ar *a) {
 	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
-		char *ctime_str;
+		struct tm *time;
+		char ftime[SFTIME];
 		char name[17];
 		char date_str[13];
 		char uid_str[7];
@@ -305,9 +307,9 @@ void ar_print(struct ar *a) {
 		perm_str[8] = (mode & S_IXOTH) ? 'x' : '-';
 		perm_str[9] = '\0';
 
-		ctime_str = ctime(&date);
-		*rindex(ctime_str, '\n') = '\0';
-		printf("%s %6d/%-6d %10d %s %s\n", perm_str, uid, gid, size, ctime_str, name);
+		time = localtime(&date);
+		strftime(ftime, SFTIME, "%b %d %H:%M %Y", time);
+		printf("%s %6d/%-6d %10d %s %s\n", perm_str, uid, gid, size, ftime, name);
 	}
 }
 
