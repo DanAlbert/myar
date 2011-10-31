@@ -9,9 +9,16 @@
 #include <utime.h>
 #include "myar.h"
 
+/// Default file permissions for new archives
 #define DEFAULT_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
+
+/// Bit mask to select only the file permissions from a file mode
 #define PERM_MASK 0x01ff
+
+/// Maximum number of bytes to write in a single write() call
 #define BLOCK_SIZE 4096
+
+/// Size of file time string for verbose output
 #define SFTIME 18
 
 void _ar_file_copy(void **dst, void *src);
@@ -19,7 +26,9 @@ void _ar_file_release(void *res);
 
 /**
  * @brief Initializes an ar structure.
+ *
  * Preconditions: a is not NULL
+ * 
  * Postconditions: a.files is initialized
  *
  * @param a Pointer to a new ar structure
@@ -30,7 +39,9 @@ void ar_init(struct ar *a) {
 
 /**
  * @brief Cleans up and frees all resources associated with an archive.
+ * 
  * Preconditions: a is not NULL
+ * 
  * Postconditions: a.fd is closed, a.files is freed
  *
  * @param a Pointer to ar structure
@@ -45,7 +56,9 @@ void ar_free(struct ar *a) {
 
 /**
  * @brief Opens and loads an archive file, creating one if it does not exist.
+ * 
  * Preconditions: a is not NULL, a is initialized, a has not been opened, path is not NULL, path refers to either an existing archive or can be created
+ * 
  * Postconditions: Archive referred to by path has been opened and loaded into aor a new archive has been created at path, files in archive have been loaded into a
  *
  * @param a Pointer to a newly initialized ar structure
@@ -93,7 +106,9 @@ bool ar_open(struct ar *a, const char *path) {
 
 /**
  * @brief Writes changes to an archive and closes the archive file.
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * 
  * Postconditions: Archive data is written, a.fd is closed
  *
  * @param a Pointer to archive structure
@@ -164,7 +179,9 @@ bool ar_close(struct ar *a) {
 
 /**
  * @brief Retrieves the number of files in the archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * 
  * Postconditions:
  *
  * @param a Pointer to ar structure
@@ -176,7 +193,9 @@ size_t ar_nfiles(struct ar *a) {
 
 /**
  * @brief Retrieves a pointer to the ith file in an archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive, i is between zero and ar.files.size
+ * 
  * Postconditions:
  *
  * @param a Pointer to ar structure
@@ -189,7 +208,9 @@ struct ar_file *ar_get_file(struct ar *a, size_t i) {
 
 /**
  * @brief Adds a file to an archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive, path is not NULL, path refers to an existing file, file referred to by path is readable
+ * 
  * Postconditions: The file has been added to the archive
  *
  * @param a Pointer to ar structure
@@ -249,7 +270,9 @@ bool ar_add_file(struct ar *a, const char *path) {
 
 /**
  * @brief Removes a file from an archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive, name is not NULL, name refers to a file in the archive
+ * 
  * Postconditions: The file has been removed from the archive
  *
  * @param a Pointer to ar structure
@@ -280,7 +303,9 @@ bool ar_remove_file(struct ar *a, const char *name) {
 
 /**
  * @brief Extracts a file from an archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive, name is not NULL, name refers to a file in the archive, a file with path name is writable
+ * 
  * Postconditions: The file has been extracted from the archive
  *
  * @param a Pointer to ar structure
@@ -340,7 +365,9 @@ bool ar_extract_file(struct ar *a, const char *name) {
 
 /**
  * @brief Prints the names of each file in the archive to stdout
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * 
  * Postconditions: 
  *
  * @param a Pointer to ar structure
@@ -368,7 +395,9 @@ void ar_print_concise(struct ar *a) {
 
 /**
  * @brief Prints formatted header data of each file in the archive to stdout
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * 
  * Postconditions: 
  *
  * @param a Pointer to ar structure
@@ -439,7 +468,9 @@ void ar_print_verbose(struct ar *a) {
 
 /**
  * @brief Verifies presence and validity of ar file magic number
+ *
  * Preconditions: a is not NULL, a has been opened
+ *
  * Postconditions: File pointer has been returned to its original position
  *
  * @param Pointer to ar structure
@@ -469,7 +500,9 @@ bool _ar_check_global_hdr(struct ar *a) {
 
 /**
  * @brief Loads each file found in the archive
+ * 
  * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * 
  * Postconditions: All files contained in the archive have been loaded
  *
  * @param a Pointer to ar structure
@@ -504,7 +537,9 @@ bool _ar_scan(struct ar *a) {
 
 /**
  * @brief Loads file header and data from archive file
+ * 
  * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header
+ * 
  * Postconditions: File header and data have been loaded
  *
  * @param a Pointer to ar structure
@@ -540,7 +575,9 @@ bool _ar_load_file(struct ar *a) {
 
 /**
  * @brief Loads file header from archive file
+ * 
  * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, hdr is not NULL
+ * 
  * Postconditions: File header has been loaded into hdr
  *
  * @param a Pointer to ar structure
@@ -568,7 +605,9 @@ bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 
 /**
  * @brief Loads file data from archive file
+ * 
  * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, file is not NULL
+ * 
  * Postconditions: File data has been loaded into file.data
  *
  * @param a Pointer to ar structure
@@ -604,7 +643,9 @@ bool _ar_load_data(struct ar *a, struct ar_file *file) {
 
 /**
  * @brief Copies data from one ar_file to another
+ * 
  * Preconditions: dst is not NULL, src is not NULL
+ * 
  * Postconditions: Memory has been allocated for *dst, src has been copied to *dst
  *
  * @param dst Pointer to pointer to destination ar_file structure
@@ -624,7 +665,9 @@ void _ar_file_copy(void **dst, void *src) {
 
 /**
  * @brief Frees all memory used by an ar_file structure
+ * 
  * Preconditions: res is not NULL
+ * 
  * Postconditions: Memory allocated for file data has been released, memory allocated for res has been released
  *
  * @param res Pointer to ar_file structure
