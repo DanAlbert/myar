@@ -35,6 +35,7 @@ void string_copy(void **dst, void *src) {
 void usage(void);
 
 void append_all(const char *path);
+void concise_table(const char *path);
 void verbose_table(const char *path);
 void delete(const char *path, struct List *names);
 void append(const char *path, struct List *names);
@@ -129,6 +130,9 @@ int main(int argc, char **argv) {
 	case MODE_APPEND:
 		append(archive_path, &files);
 		break;	
+	case MODE_CONCISE_TABLE:
+		concise_table(archive_path);
+		break;
 	case MODE_VERBOSE_TABLE:
 		verbose_table(archive_path);
 		break;
@@ -172,6 +176,19 @@ void append_all(const char *path) {
 	ar_free(&a);
 }
 
+void concise_table(const char *path) {
+	struct ar a;
+
+	ar_init(&a);
+	if (ar_open(&a, path) == false) {
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
+	} else {
+		ar_print_concise(&a);
+	}
+
+	ar_free(&a);
+}
+
 void verbose_table(const char *path) {
 	struct ar a;
 
@@ -179,7 +196,7 @@ void verbose_table(const char *path) {
 	if (ar_open(&a, path) == false) {
 		fprintf(stderr, "Failed to open archive (%s)\n", path);
 	} else {
-		ar_print(&a);
+		ar_print_verbose(&a);
 	}
 
 	ar_free(&a);

@@ -263,7 +263,28 @@ bool ar_extract_file(struct ar *a, const char *name) {
 	}
 }
 
-void ar_print(struct ar *a) {
+void ar_print_concise(struct ar *a) {
+	for (int i = 0; i < ar_nfiles(a); i++) {
+		struct ar_hdr *hdr;
+
+		char *slash_location;
+		char name[17];
+		
+		hdr = &ar_get_file(a, i)->hdr;
+
+		memset(name, '\0', sizeof(name));
+		strncpy(name, hdr->ar_name, sizeof(name));
+
+		slash_location = rindex(name, '/');
+		if (slash_location != NULL) {
+			*slash_location = '\0'; // Replace the terminating / with a null
+		}
+
+		printf("%s\n", name);
+	}
+}
+
+void ar_print_verbose(struct ar *a) {
 	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
 		struct tm *time;

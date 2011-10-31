@@ -29,7 +29,8 @@ struct ar_file *ar_get_file(struct ar *a, size_t i);
 bool ar_add_file(struct ar *a, const char *path);
 bool ar_remove_file(struct ar *a, const char *name);
 bool ar_extract_file(struct ar *a, const char *name);
-void ar_print(struct ar *a);
+void ar_print_concise(struct ar *a);
+void ar_print_verbose(struct ar *a);
 
 bool _ar_check_global_hdr(struct ar *a);
 bool _ar_scan(struct ar *a);
