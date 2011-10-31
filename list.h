@@ -3,12 +3,23 @@
 
 #include <stdlib.h>
 
+/**
+ * An element in the linked list
+ */
 struct Node {
+	/// Data for the element
 	void *value;
+	
+	/// Previous element in the list
 	struct Node *previous;
+	
+	/// Next element in the list
 	struct Node *next;
 };
 
+/**
+ * Linked list
+ */
 struct List {
 	struct Node *head;
 	struct Node *tail;
