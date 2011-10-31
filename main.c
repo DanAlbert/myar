@@ -1,4 +1,7 @@
+#define _BSD_SOURCE 1
+
 #include <assert.h>
+#include <dirent.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +34,7 @@ void string_copy(void **dst, void *src) {
 
 void usage(void);
 
+void append_all(const char *path);
 void verbose_table(const char *path);
 void delete(const char *path, struct List *names);
 void append(const char *path, struct List *names);
@@ -116,6 +120,9 @@ int main(int argc, char **argv) {
 	}
 
 	switch (mode) {
+	case MODE_APPEND_ALL:
+		append_all(archive_path);
+		break;
 	case MODE_DELETE:
 		delete(archive_path, &files);
 		break;
@@ -133,6 +140,36 @@ int main(int argc, char **argv) {
 	list_free(&files);
 
 	return 0;
+}
+
+void append_all(const char *path) {
+	DIR *dp;
+	struct dirent *de;
+	struct ar a;
+
+	dp = opendir("./");
+	if (dp == NULL) {
+		// Report error
+		fprintf(stderr, "Could not open current directory\n");
+		return;
+	}
+
+	ar_init(&a);
+	if (ar_open(&a, path) == false) {
+		fprintf(stderr, "Failed to open archive (%s)\n", path);
+	} else {
+		while ((de = readdir(dp)) != NULL) {
+			if ((de->d_type == DT_REG) && (strcmp(de->d_name, path) != 0)) {
+				if (ar_add_file(&a, de->d_name) == false) {
+					fprintf(stderr, "Failed to add %s to archive\n", de->d_name);
+				}
+			}
+		}
+	}
+
+	closedir(dp);
+
+	ar_free(&a);
 }
 
 void verbose_table(const char *path) {
