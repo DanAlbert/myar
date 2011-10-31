@@ -3,16 +3,15 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 #include <utime.h>
 #include "myar.h"
 
 #define DEFAULT_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
-
-// TODO:
-// add_file
-// remove_file
+#define PERM_MASK 0x01ff
+#define BLOCK_SIZE 4096
 
 void _ar_file_copy(void **dst, void *src);
 void _ar_file_release(void *res);
@@ -70,7 +69,6 @@ bool ar_open(struct ar *a, const char *path) {
 
 bool ar_close(struct ar *a) {
 	off_t total_sz;
-	int i;
 
 	assert(a);
 	
@@ -85,11 +83,11 @@ bool ar_close(struct ar *a) {
 	write(a->fd, ARMAG, SARMAG);
 	total_sz += SARMAG;
 	
-	for (i = 0; i < ar_nfiles(a); i++) {
+	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file *file = ar_get_file(a, i);
 		char size_str[11];
-		off_t block_size = 0;
 		off_t size;
+		off_t written = 0;
 
 		memset(size_str, '\0', sizeof(size_str));
 		strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
@@ -98,14 +96,26 @@ bool ar_close(struct ar *a) {
 		// Write a single new line if we are not on an even byte offset
 		if ((lseek(a->fd, 0, SEEK_CUR) % 2) != 0) {
 			write(a->fd, "\n", sizeof(uint8_t));
-			block_size += sizeof(uint8_t);
+			total_sz += sizeof(uint8_t);
 		}
 
 		write(a->fd, &file->hdr, sizeof(struct ar_hdr));
-		block_size += sizeof(struct ar_hdr);
-		write(a->fd, file->data, size); 
-		block_size += size;
-		total_sz += block_size;
+		total_sz += sizeof(struct ar_hdr);
+
+		while (written < size) {
+			int wr_size;
+
+			if ((size - written) < BLOCK_SIZE) {
+				wr_size = size - written;
+			} else {
+				wr_size = BLOCK_SIZE;
+			}
+
+			write(a->fd, file->data, wr_size); 
+			written += wr_size;
+		}
+
+		total_sz += size;
 	}
 
 	ftruncate(a->fd, total_sz);
@@ -175,8 +185,7 @@ bool ar_add_file(struct ar *a, const char *path) {
 }
 
 bool ar_remove_file(struct ar *a, const char *name) {
-	int i;
-	for (i = 0; i < ar_nfiles(a); i++) {
+	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file *file = ar_get_file(a, i);
 		char fname[17];
 
@@ -194,8 +203,7 @@ bool ar_remove_file(struct ar *a, const char *name) {
 }
 
 bool ar_extract_file(struct ar *a, const char *name) {
-	int i;
-	for (i = 0; i < ar_nfiles(a); i++) {
+	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_file * file = ar_get_file(a, i);
 		if (memcmp(name, file->hdr.ar_name, strlen(name)) == 0) {
 			struct utimbuf tbuf;
@@ -205,29 +213,21 @@ bool ar_extract_file(struct ar *a, const char *name) {
 			char gid_str[7];
 			char mode_str[9];
 			time_t modify;
-			uid_t uid;
-			gid_t gid;
 			int fd;
 			int size;
 			int mode;
 
 			memset(size_str, '\0', sizeof(size_str));
 			memset(time_str, '\0', sizeof(time_str));
-			memset(uid_str, '\0', sizeof(uid_str));
-			memset(gid_str, '\0', sizeof(gid_str));
 			memset(mode_str, '\0', sizeof(mode_str));
 			strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
 			strncpy(time_str, file->hdr.ar_date, sizeof(time_str));
-			strncpy(uid_str, file->hdr.ar_uid, sizeof(uid_str));
-			strncpy(gid_str, file->hdr.ar_gid, sizeof(gid_str));
 			strncpy(mode_str, file->hdr.ar_mode, sizeof(mode_str));
 			size = strtol(size_str, NULL, 10);
-			uid = strtol(uid_str, NULL, 10);
-			gid = strtol(gid_str, NULL, 10);
 			modify = strtol(time_str, NULL, 10);
 			mode = strtol(mode_str, NULL, 8);
 			
-			fd = creat(name, mode & 0x01ff);
+			fd = creat(name, mode & PERM_MASK);
 
 			if (fd < 0) {
 				// Report error
@@ -238,7 +238,7 @@ bool ar_extract_file(struct ar *a, const char *name) {
 
 			close(fd);
 
-			chown(name, uid, gid);
+			chmod(name, mode & PERM_MASK);
 
 			tbuf.actime = modify;
 			tbuf.modtime = modify;
@@ -254,8 +254,7 @@ bool ar_extract_file(struct ar *a, const char *name) {
 }
 
 void ar_print(struct ar *a) {
-	int i;
-	for (i = 0; i < ar_nfiles(a); i++) {
+	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
 		char *ctime_str;
 		char name[17];

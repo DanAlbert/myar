@@ -8,6 +8,7 @@ CC = gcc
 
 CFLAGS = \
 	$(INCLUDEDIRS) \
+	-std=c99 \
 	-Wall \
 	-Wextra \
 	-Wmissing-prototypes \

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -154,9 +155,7 @@ void extract(const char *path, struct List *names) {
 	if (ar_open(&a, path) == false) {
 		fprintf(stderr, "Failed to open archive (%s)\n", path);
 	} else {
-		int i;
-		for (i = 0; i < list_size(names); i++)
-		{
+		for (int i = 0; i < list_size(names); i++) {	
 			char *name = (char *)list_get(names, i);
 			if (ar_extract_file(&a, name) == false) {
 				fprintf(stderr, "Failed to extract %s from archive\n", name);
@@ -174,9 +173,7 @@ void append(const char *path, struct List *names) {
 	if (ar_open(&a, path) == false) {
 		fprintf(stderr, "Failed to open archive (%s)\n", path);
 	} else {
-		int i;
-		for (i = 0; i < list_size(names); i++)
-		{
+		for (int i = 0; i < list_size(names); i++) {
 			char *name = (char *)list_get(names, i);
 			if (ar_add_file(&a, name) == false) {
 				fprintf(stderr, "Failed to add %s to archive\n", name);
@@ -194,9 +191,7 @@ void delete(const char *path, struct List *names) {
 	if (ar_open(&a, path) == false) {
 		fprintf(stderr, "Failed to open archive (%s)\n", path);
 	} else {
-		int i;
-		for (i = 0; i < list_size(names); i++)
-		{
+		for (int i = 0; i < list_size(names); i++) {
 			char *name = (char *)list_get(names, i);
 			if (ar_remove_file(&a, name) == false) {
 				fprintf(stderr, "Failed to remove %s from archive\n", name);
