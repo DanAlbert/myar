@@ -161,7 +161,7 @@ bool ar_add_file(struct ar *a, const char *path) {
 	}
 
 	// Should strip any path preceding file name
-	snprintf(name, sizeof(name), "%-.15s/", path);
+	snprintf(name, sizeof(name), "%-.16s", path);
 	slash_location = rindex(name, '/');
 
 	if (slash_location != NULL) {
