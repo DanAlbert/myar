@@ -11,12 +11,25 @@
 #include "list.h"
 #include "myar.h"
 
+/// No mode selected
 #define MODE_NONE			0
+
+/// Append all regular files in current working directory mode
 #define MODE_APPEND_ALL 	1
+
+/// Delete archive member mode
 #define MODE_DELETE			2
+
+/// Append files to archive mode
 #define MODE_APPEND			3
+
+/// Print concise archive contents table mode
 #define MODE_CONCISE_TABLE	4
+
+/// Print verbose archive contents table mode
 #define MODE_VERBOSE_TABLE	5
+
+/// Extract members from archive mode
 #define MODE_EXTRACT		6
 
 void string_copy(void **dst, void *src) {
@@ -32,15 +45,89 @@ void string_copy(void **dst, void *src) {
 	assert(!strcmp((char *)*dst, src));
 }
 
+/**
+ * @brief Print usage message and exit.
+ */
 void usage(void);
 
+/**
+ * @brief Open or create an archive, append all files and close the archive.
+ *
+ * Preconditions: path is not NULL, file referred to by path is writable
+ *
+ * Postconditions: An archive located at path contains all regular files in the current working directory.
+ *
+ * @param path Path of the archive file to open or create
+ */
 void append_all(const char *path);
+
+/**
+ * @brief Open an archive and print a concise file table.
+ *
+ * Preconditions: path is not NULL, a valid archive exists at path
+ *
+ * Postconditions: 
+ *
+ * @param path Path of the archive file to open
+ */
 void concise_table(const char *path);
+
+/**
+ * @brief Open an archive and print a verbose file table.
+ *
+ * Preconditions: path is not NULL, a valid archive exists at path
+ *
+ * Postconditions: 
+ *
+ * @param path Path of the archive file to open
+ */
 void verbose_table(const char *path);
+
+/**
+ * @brief Remove all archive members defined in the list names from the archive referred to by path.
+ *
+ * Preconditions: path is not NULL, a valid archive exists at path, names is not NULL, names contains a list of members to be removed from the archive
+ *
+ * Postconditions: The members defined in the list do not exist in the archive
+ *
+ * @param path Path of the archive file to open
+ * @param names List of members to remove from the archive
+ */
 void delete(const char *path, struct List *names);
+
+/**
+ * @brief Append all files defined in the list names to the archive referred to by path, creating the archvie if it does not exist.
+ *
+ * Preconditions: path is not NULL, names is not NULL, names contains a list of files to be appended to the archive
+ *
+ * Postconditions: The files defined in the list are in the archive
+ *
+ * @param path Path of the archive file to open
+ * @param names List of files to add to the archive
+ */
 void append(const char *path, struct List *names);
+
+/**
+ * @brief Extract all members defined in the list names from the archive referred to by path.
+ *
+ * Preconditions: path is not NULL, names is not NULL, names contains a list of memebers to be extracted from the archive, a file may be written with the name of each member in the list of names
+ *
+ * Postconditions: The members defined in the list have been extracted
+ *
+ * @param path Path of the archive file to open
+ * @param names List of members to extract from the archive
+ */
 void extract(const char *path, struct List *names);
 
+/**
+ * @brief Program entry point.
+ *
+ * Parses command line arguments and dispatches necessary information to the proper functions.
+ *
+ * @param argc Number of command line arguments
+ * @param argv Array of strings containing command line arguments
+ * @return Exit status
+ */
 int main(int argc, char **argv) {
 	struct List files;
 	char *archive_path = NULL;
