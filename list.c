@@ -2,19 +2,71 @@
 #include "list.h"
 #include "string.h"
 
+/**
+ * @brief Allocates memory for and returns a new Node.
+ *
+ * @return Pointer to the newly allocated Node
+ */
 struct Node *_allocate_node(void);
 
+/**
+ * @brief Tests list_init().
+ */
 void _list_test_init(void);
+
+/**
+ * @brief Tests list_size().
+ */
 void _list_test_size(void);
+
+/**
+ * @brief Tests list_get().
+ */
 void _list_test_get(void);
+
+/**
+ * @brief Tests list_add_back().
+ */
 void _list_test_add_back(void);
+
+/**
+ * @brief Tests list_add_front().
+ */
 void _list_test_add_front(void);
+
+/**
+ * @brief Tests list_insert().
+ */
 void _list_test_insert(void);
+
+/**
+ * @brief Tests list_swap().
+ */
 void _list_test_swap(void);
+
+/**
+ * @brief Tests list_remove().
+ */
 void _list_test_remove(void);
+
+/**
+ * @brief Tests list_remove_front().
+ */
 void _list_test_remove_front(void);
+
+/**
+ * @brief Tests list_remove_back().
+ */
 void _list_test_remove_back(void);
+
+/**
+ * @brief Tests list_clear().
+ */
 void _list_test_clear(void);
+
+/**
+ * @brief Tests list_free().
+ */
 void _list_test_free(void);
 
 void copy(void **dst, void *src) {
@@ -28,12 +80,6 @@ void copy(void **dst, void *src) {
 	*dst = (int *)malloc((strlen(src) + 1) * sizeof(char));
 	strcpy(*dst, src);
 	assert(!strcmp(*dst, src));
-}
-
-void release(void *res) {
-	if (res != NULL) {
-		free(res);
-	}
 }
 
 void list_init(
@@ -324,7 +370,7 @@ struct Node *_allocate_node(void) {
 
 void _list_test_init(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	assert(list.size == 0);
 	assert(list.head == NULL);
@@ -335,7 +381,7 @@ void _list_test_init(void) {
 
 void _list_test_size(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -352,7 +398,7 @@ void _list_test_size(void) {
 void _list_test_get(void) {
 	struct List list;
 
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -377,7 +423,7 @@ void _list_test_add_back(void) {
 
 void _list_test_add_front(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_front(&list, "1");
 	list_add_front(&list, "2");
@@ -398,7 +444,7 @@ void _list_test_add_front(void) {
 
 void _list_test_insert(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	// Insert to an empty list
 	list_insert(&list, 0, "1");
@@ -426,7 +472,7 @@ void _list_test_insert(void) {
 
 void _list_test_swap(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -450,7 +496,7 @@ void _list_test_swap(void) {
 
 void _list_test_remove(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -473,7 +519,7 @@ void _list_test_remove(void) {
 
 void _list_test_remove_front(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -496,7 +542,7 @@ void _list_test_remove_front(void) {
 
 void _list_test_remove_back(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -519,7 +565,7 @@ void _list_test_remove_back(void) {
 
 void _list_test_clear(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -541,7 +587,7 @@ void _list_test_clear(void) {
 
 void _list_test_free(void) {
 	struct List list;
-	list_init(&list, copy, release);
+	list_init(&list, copy, free);
 
 	list_add_back(&list, "1");
 	list_add_back(&list, "2");
@@ -559,6 +605,6 @@ void _list_test_free(void) {
 	assert(list.release == NULL);
 
 	assert(copy != NULL);
-	assert(release != NULL);
+	assert(free != NULL);
 }
 
