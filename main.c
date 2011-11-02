@@ -40,7 +40,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "list.h"
 #include "myar.h"
 
 /// No mode selected
@@ -64,92 +63,10 @@
 /// Extract members from archive mode
 #define MODE_EXTRACT		6
 
-void string_copy(void **dst, void *src) {
-	assert(src);
-	assert(dst);
-
-	if (*dst != NULL) {
-		free(*dst);
-	}
-
-	*dst = (void *)malloc((strlen((char *)src) + 1) * sizeof(char));
-	strcpy((char *)*dst, (char *)src);
-	assert(!strcmp((char *)*dst, src));
-}
-
 /**
  * @brief Print usage message and exit.
  */
 void usage(void);
-
-/**
- * @brief Open or create an archive, append all files and close the archive.
- *
- * Preconditions: path is not NULL, file referred to by path is writable
- *
- * Postconditions: An archive located at path contains all regular files in the current working directory.
- *
- * @param path Path of the archive file to open or create
- */
-void append_all(const char *path);
-
-/**
- * @brief Open an archive and print a concise file table.
- *
- * Preconditions: path is not NULL, a valid archive exists at path
- *
- * Postconditions: 
- *
- * @param path Path of the archive file to open
- */
-void concise_table(const char *path);
-
-/**
- * @brief Open an archive and print a verbose file table.
- *
- * Preconditions: path is not NULL, a valid archive exists at path
- *
- * Postconditions: 
- *
- * @param path Path of the archive file to open
- */
-void verbose_table(const char *path);
-
-/**
- * @brief Remove all archive members defined in the list names from the archive referred to by path.
- *
- * Preconditions: path is not NULL, a valid archive exists at path, names is not NULL, names contains a list of members to be removed from the archive
- *
- * Postconditions: The members defined in the list do not exist in the archive
- *
- * @param path Path of the archive file to open
- * @param names List of members to remove from the archive
- */
-void delete(const char *path, struct List *names);
-
-/**
- * @brief Append all files defined in the list names to the archive referred to by path, creating the archvie if it does not exist.
- *
- * Preconditions: path is not NULL, names is not NULL, names contains a list of files to be appended to the archive
- *
- * Postconditions: The files defined in the list are in the archive
- *
- * @param path Path of the archive file to open
- * @param names List of files to add to the archive
- */
-void append(const char *path, struct List *names);
-
-/**
- * @brief Extract all members defined in the list names from the archive referred to by path.
- *
- * Preconditions: path is not NULL, names is not NULL, names contains a list of memebers to be extracted from the archive, a file may be written with the name of each member in the list of names
- *
- * Postconditions: The members defined in the list have been extracted
- *
- * @param path Path of the archive file to open
- * @param names List of members to extract from the archive
- */
-void extract(const char *path, struct List *names);
 
 /**
  * @brief Program entry point.
@@ -161,10 +78,10 @@ void extract(const char *path, struct List *names);
  * @return Exit status
  */
 int main(int argc, char **argv) {
-	struct List files;
 	char *archive_path = NULL;
-	int c;
 	int mode = MODE_NONE;
+	int c;
+	int fd;
 
 	while ((c = getopt(argc, argv, "Adqtvx")) != -1) {
 		switch (c) {
@@ -218,57 +135,60 @@ int main(int argc, char **argv) {
 	if (mode == MODE_NONE) {
 		usage();
 	}
-	
-	list_init(&files, string_copy, free);
 
-	while (optind < argc) {
+	if (optind < argc) {
+		archive_path = (char *)malloc((strlen(argv[optind]) + 1) * sizeof(char));
 		if (archive_path == NULL) {
-			archive_path = (char *)malloc((strlen(argv[optind]) + 1) * sizeof(char));
-			if (archive_path == NULL) {
-				perror(NULL);
-				exit(0);
-			}
-			
-			strcpy(archive_path, argv[optind++]);
-		} else {
-			list_add_back(&files, argv[optind++]);
+			perror(NULL);
+			exit(0);
 		}
-	}
-
-	if (archive_path == NULL) {
+			
+		strcpy(archive_path, argv[optind++]);
+	} else {
 		usage();
 	}
 
-	switch (mode) {
-	case MODE_APPEND_ALL:
-		append_all(archive_path);
-		break;
-	case MODE_DELETE:
-		delete(archive_path, &files);
-		break;
-	case MODE_APPEND:
-		append(archive_path, &files);
-		break;	
-	case MODE_CONCISE_TABLE:
-		concise_table(archive_path);
-		break;
-	case MODE_VERBOSE_TABLE:
-		verbose_table(archive_path);
-		break;
-	case MODE_EXTRACT:
-		extract(archive_path, &files);
-		break;
+	fd = ar_open(archive_path);
+	if (fd == -1) {
+		fprintf(stderr, "Could not open archive file\n");
+		return -1;
 	}
+
+	do {
+		switch (mode) {
+		case MODE_APPEND_ALL:
+			append_all(fd, archive_path);
+			break;
+		case MODE_DELETE:
+			//ar_remove(fd, argv[optind++]);
+			printf("Not yet implemented\n");
+			break;
+		case MODE_APPEND:
+			ar_append(fd, argv[optind++]);
+			break;
+		case MODE_CONCISE_TABLE:
+			ar_print_concise(fd);
+			break;
+		case MODE_VERBOSE_TABLE:
+			ar_print_verbose(fd);
+			break;
+		case MODE_EXTRACT:
+			ar_extract(fd, argv[optind++]);
+			break;
+		}
+	} while (optind < argc);
 	
-	list_free(&files);
+	ar_close(fd);
 
 	return 0;
 }
 
-void append_all(const char *path) {
+void append_all(int fd, const char *exclude) {
 	DIR *dp;
 	struct dirent *de;
-	struct ar a;
+	
+	assert(fd >= 0);
+	assert(exclude != NULL);
 
 	dp = opendir("./");
 	if (dp == NULL) {
@@ -277,102 +197,15 @@ void append_all(const char *path) {
 		return;
 	}
 
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		while ((de = readdir(dp)) != NULL) {
-			if ((de->d_type == DT_REG) && (strcmp(de->d_name, path) != 0)) {
-				if (ar_add_file(&a, de->d_name) == false) {
-					fprintf(stderr, "Failed to add %s to archive\n", de->d_name);
-				}
+	while ((de = readdir(dp)) != NULL) {
+		if ((de->d_type == DT_REG) && (strcmp(de->d_name, exclude) != 0)) {
+			if (ar_append(fd, de->d_name) == false) {
+				fprintf(stderr, "Failed to add %s to archive\n", de->d_name);
 			}
 		}
 	}
 
 	closedir(dp);
-
-	ar_free(&a);
-}
-
-void concise_table(const char *path) {
-	struct ar a;
-
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		ar_print_concise(&a);
-	}
-
-	ar_free(&a);
-}
-
-void verbose_table(const char *path) {
-	struct ar a;
-
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		ar_print_verbose(&a);
-	}
-
-	ar_free(&a);
-}
-
-void extract(const char *path, struct List *names) {
-	struct ar a;
-
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		for (int i = 0; i < list_size(names); i++) {	
-			char *name = (char *)list_get(names, i);
-			if (ar_extract_file(&a, name) == false) {
-				fprintf(stderr, "Failed to extract %s from archive\n", name);
-			}
-		}
-	}
-
-	ar_free(&a);
-}
-
-void append(const char *path, struct List *names) {
-	struct ar a;
-
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		for (int i = 0; i < list_size(names); i++) {
-			char *name = (char *)list_get(names, i);
-			if (ar_add_file(&a, name) == false) {
-				fprintf(stderr, "Failed to add %s to archive\n", name);
-			}
-		}
-	}
-
-	ar_free(&a);
-}
-
-void delete(const char *path, struct List *names) {
-	struct ar a;
-
-	ar_init(&a);
-	if (ar_open(&a, path) == false) {
-		fprintf(stderr, "Failed to open archive (%s)\n", path);
-	} else {
-		for (int i = 0; i < list_size(names); i++) {
-			char *name = (char *)list_get(names, i);
-			if (ar_remove_file(&a, name) == false) {
-				fprintf(stderr, "Failed to remove %s from archive\n", name);
-			}
-		}
-	}
-
-	ar_free(&a);
 }
 
 void usage(void) {
@@ -386,4 +219,3 @@ void usage(void) {
 	printf("  x\t- extract named files\n");
 	exit(0);
 }
-
