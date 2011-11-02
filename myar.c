@@ -128,6 +128,8 @@ gid_t _ar_member_gid(struct ar_hdr *hdr);
 mode_t _ar_member_mode(struct ar_hdr *hdr);
 off_t _ar_member_size(struct ar_hdr *hdr);
 
+bool block_copy(int fd, off_t from, off_t to, size_t size);
+
 int ar_open(const char *path) {
 	struct stat st;
 	bool create;
@@ -304,9 +306,11 @@ bool ar_remove(int fd, const char *name) {
 
 	// If there is more data following this member
 	if (member_end < ar_size) {
-		// TODO: Shift data down
+		if (block_copy(fd, member_end, pos, size) == false) {
+			fprintf(stderr, "Error while shifting data\n");
+			return false;
+		}
 
-		// TODO: Truncate extra newline if necessary
 		ftruncate(fd, ar_size - sizeof(struct ar_hdr) - size);
 	} else {
 		// Truncate last member
@@ -633,4 +637,51 @@ off_t _ar_member_size(struct ar_hdr *hdr) {
 	str[SARFSIZE] = '\0';
 
 	return strtol(str, NULL, 10);
+}
+
+bool block_copy(int fd, off_t from, off_t to, size_t size) {
+	uint8_t *buf;
+	size_t done;
+
+	assert(fd >= 0);
+	assert(from >= 0);
+	assert(to >= 0);
+	assert(size > 0);
+	assert(from + size <= lseek(fd, 0, SEEK_END));
+	assert(to + size <= lseek(fd, 0, SEEK_END));
+
+	buf = (uint8_t *)malloc(size);
+	if (buf == NULL) {
+		perror("Error allocating memory");
+		return false;
+	}
+
+	done = 0;
+	lseek(fd, from, SEEK_SET);
+	while (done < size) {
+		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		if (read(fd, buf + done, count) == -1) {
+			perror("Read error");
+			free(buf);
+			return false;
+		}
+
+		done += count;
+	}
+
+	done = 0;
+	lseek(fd, to, SEEK_SET);
+	while (done < size) {
+		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		if (write(fd, buf + done, count) == -1) {
+			perror("Write error");
+			free(buf);
+			return false;
+		}
+
+		done += count;
+	}
+
+	free(buf);
+	return true;
 }

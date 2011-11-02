@@ -160,8 +160,7 @@ int main(int argc, char **argv) {
 			append_all(fd, archive_path);
 			break;
 		case MODE_DELETE:
-			//ar_remove(fd, argv[optind++]);
-			printf("Not yet implemented\n");
+			ar_remove(fd, argv[optind++]);
 			break;
 		case MODE_APPEND:
 			ar_append(fd, argv[optind++]);
