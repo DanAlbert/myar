@@ -24,7 +24,7 @@
  * 
  * @section DESCRIPTION
  * 
- * Defines an interface for ar file handling.
+ * Defines an interface for UNIX archive file handling.
  * 
  */
 #ifndef AR_H
@@ -33,166 +33,98 @@
 #include <ar.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "list.h"
-
-/// Size of ar file header magic number
-#define SARFMAG 2
 
 /**
- * @brief A file header and data
- */
-struct ar_file {
-	/// ar file header
-	struct ar_hdr hdr;
-
-	/// File data contained in archive
-	uint8_t *data;
-};
-
-/**
- * @brief File descriptor of the archive file and a list of contained files
- */
-struct ar {
-	/// Archive file descriptor
-	int fd;
-	
-	/// List of files contained in the archive
-	struct List files;
-};
-
-/**
- * @brief Initializes an ar structure.
+ * @brief Opens and verifies an archive file, creating one if it does not exist.
+ * 
+ * Preconditions: path is not NULL, path refers to either an existing archive or
+ * can be created
+ * 
+ * Postconditions: Archive referred to by path has been opened or a new archive
+ * has been created at path
  *
- * Preconditions: a is not NULL
- * 
- * Postconditions: a.files is initialized
- *
- * @param a Pointer to a new ar structure
+ * @param path Path to an existing archive or location for a new archive to be
+ * created.
+ * @return File descriptor of the open archive file.
+ * @retval -1 An error occured while opening the archive.
  */
-void ar_init(struct ar *a);
+int ar_open(const char *path);
 
 /**
- * @brief Cleans up and frees all resources associated with an archive.
+ * @brief Closes an open archive file.
  * 
- * Preconditions: a is not NULL
+ * Preconditions: fd is a valid file descriptor
  * 
- * Postconditions: a.fd is closed, a.files is freed
+ * Postconditions: fd is closed
  *
- * @param a Pointer to ar structure
+ * @param fd File descriptor of an open archive.
  */
-void ar_free(struct ar *a);
+void ar_close(int fd);
 
 /**
- * @brief Opens and loads an archive file, creating one if it does not exist.
+ * @brief Appends a file to an archive.
  * 
- * Preconditions: a is not NULL, a is initialized, a has not been opened, path is not NULL, path refers to either an existing archive or can be created
+ * Preconditions: fd is an file descriptor for a valid archive, path is not
+ * NULL, path refers to an existing file, file referred to by path is readable
  * 
- * Postconditions: Archive referred to by path has been opened and loaded into aor a new archive has been created at path, files in archive have been loaded into a
+ * Postconditions: The file has been appended to the archive
  *
- * @param a Pointer to a newly initialized ar structure
- * @param path Path to an existing archive or location for a new archive to be created
+ * @param fd File descriptor of an open archive
+ * @param path Path to the file to be appended to the archive
  * @return true on success, false otherwise
  */
-bool ar_open(struct ar *a, const char *path);
+bool ar_append(int fd, const char *path);
 
 /**
- * @brief Writes changes to an archive and closes the archive file.
+ * @brief Removes a member from an archive.
  * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * Preconditions: fd is an file descriptor for a valid archive, name is not
+ * NULL, name refers to a member of the archive
  * 
- * Postconditions: Archive data is written, a.fd is closed
+ * Postconditions: The member has been removed from the archive
  *
- * @param a Pointer to archive structure
+ * @param fd File descriptor of an open archive
+ * @param name Name of the member to be removed from the archive
  * @return true on success, false otherwise
  */
-bool ar_close(struct ar *a);
-
-
-/**
- * @brief Retrieves the number of files in the archive
- * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive
- * 
- * Postconditions:
- *
- * @param a Pointer to ar structure
- * @return The number of files contained in the archive
- */
-size_t ar_nfiles(struct ar *a);
+bool ar_remove(int fd, const char *name);
 
 /**
- * @brief Retrieves a pointer to the ith file in an archive
+ * @brief Extracts a member from an archive
  * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive, i is between zero and ar.files.size
+ * Preconditions: fd is an file descriptor for a valid archive, name is not
+ * NULL, name refers to a member of the archive, a file with path name is
+ * writable
  * 
- * Postconditions:
+ * Postconditions: The member has been extracted from the archive
  *
- * @param a Pointer to ar structure
- * @param i Index of file to be retrieved
- * @return Pointer to the ith ar_file structure in the archive
- */
-struct ar_file *ar_get_file(struct ar *a, size_t i);
-
-/**
- * @brief Adds a file to an archive
- * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive, path is not NULL, path refers to an existing file, file referred to by path is readable
- * 
- * Postconditions: The file has been added to the archive
- *
- * @param a Pointer to ar structure
- * @param path Path to the file to be added to the archive
+ * @param fd File descriptor of an open archive
+ * @param name Name of the member to be extracted from the archive
  * @return true on success, false otherwise
  */
-bool ar_add_file(struct ar *a, const char *path);
+bool ar_extract(int fd, const char *name);
 
 /**
- * @brief Removes a file from an archive
+ * @brief Prints the names of each member in the archive to stdout
  * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive, name is not NULL, name refers to a file in the archive
- * 
- * Postconditions: The file has been removed from the archive
- *
- * @param a Pointer to ar structure
- * @param name Name of the file to be removed from the archive
- * @return true on success, false otherwise
- */
-bool ar_remove_file(struct ar *a, const char *name);
-
-/**
- * @brief Extracts a file from an archive
- * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive, name is not NULL, name refers to a file in the archive, a file with path name is writable
- * 
- * Postconditions: The file has been extracted from the archive
- *
- * @param a Pointer to ar structure
- * @param name Name of the file to be extracted from the archive
- * @return true on success, false otherwise
- */
-bool ar_extract_file(struct ar *a, const char *name);
-
-/**
- * @brief Prints the names of each file in the archive to stdout
- * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * Preconditions: fd is an file descriptor for a valid archive
  * 
  * Postconditions: 
  *
- * @param a Pointer to ar structure
+ * @param fd File descriptor to an open archive
  */
-void ar_print_concise(struct ar *a);
+void ar_print_concise(int fd);
 
 /**
- * @brief Prints formatted header data of each file in the archive to stdout
+ * @brief Prints formatted header data of each member of the archive to stdout
  * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive
+ * Preconditions: fd is an file descriptor for a valid archive
  * 
  * Postconditions: 
  *
- * @param a Pointer to ar structure
+ * @param fd File descriptor of an open archive
  */
-void ar_print_verbose(struct ar *a);
+void ar_print_verbose(int fd);
 
 
 #endif // AR_H

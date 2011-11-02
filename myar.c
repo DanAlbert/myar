@@ -24,13 +24,17 @@
  * 
  * @section DESCRIPTION
  * 
- * Implements an interface for ar file handling.
+ * Implements an interface for UNIX archive file handling.
  * 
  */
+#undef _BSD_SOURCE
+
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <time.h>
@@ -50,110 +54,76 @@
 /// Size of file time string for verbose output
 #define SFTIME 18
 
+/// Size of ar file header name string
+#define SARFNAME 16
+
+/// Size of ar file header date string
+#define SARFDATE 12
+
+/// Size of ar file header UID string
+#define SARFUID 6
+
+/// Size of ar file header GID string
+#define SARFGID 6
+
+/// Size of ar file header mode string
+#define SARFMODE 8
+
+/// Size of ar file header size string
+#define SARFSIZE 10
+
+/// Size of ar file header magic number
+#define SARFMAG 2
+
 /**
- * @brief Verifies presence and validity of ar file magic number
+ * @brief Verifies presence and validity of ar file magic number.
  *
- * Preconditions: a is not NULL, a has been opened
+ * Preconditions: fd is an file descriptor for a valid archive
  *
  * Postconditions: File pointer has been returned to its original position
  *
- * @param Pointer to ar structure
+ * @param fd File descriptor of an open archive
  * @return true if magic number is valid, false otherwise
  */
-bool _ar_check_global_hdr(struct ar *a);
+bool _ar_check_global_hdr(int fd);
 
 /**
- * @brief Loads each file found in the archive
- * 
- * Preconditions: a is not NULL, a is initialized, a is a valid archive
- * 
- * Postconditions: All files contained in the archive have been loaded
+ * @brief Writes ar file magic number to the beginning of a file.
  *
- * @param a Pointer to ar structure
+ * Preconditions: fd is an file descriptor for a valid archive
+ *
+ * Postconditions: File pointer has been returned to its original position,
+ * global header has been written
+ *
+ * @param fd File descriptor of an open archive
  * @return true on success, false otherwise
  */
-bool _ar_scan(struct ar *a);
-
-/**
- * @brief Loads file header and data from archive file
- * 
- * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header
- * 
- * Postconditions: File header and data have been loaded
- *
- * @param a Pointer to ar structure
- * @return true on success, false otherwise
- */
-bool _ar_load_file(struct ar *a);
+bool _ar_write_global_hdr(int fd);
 
 /**
  * @brief Loads file header from archive file
  * 
- * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, hdr is not NULL
+ * Preconditions: fd is an file descriptor for a valid archive, file pointer is
+ * at the beginning of a file header, hdr is not NULL
  * 
  * Postconditions: File header has been loaded into hdr
  *
- * @param a Pointer to ar structure
+ * @param fd File descriptor of an open archive
  * @param hdr Pointer to ar_hdr to load data into
  * @return true on success, false otherwise
  */
-bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr);
+bool _ar_load_hdr(int fd, struct ar_hdr *hdr);
 
-/**
- * @brief Loads file data from archive file
- * 
- * Preconditions: a is not NULL, a is initialized, file pointer is at the beginning of a file header, file is not NULL
- * 
- * Postconditions: File data has been loaded into file.data
- *
- * @param a Pointer to ar structure
- * @param file Pointer to ar_file to load data into
- * @return true on success, false otherwise
- */
-bool _ar_load_data(struct ar *a, struct ar_file *file);
+bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr);
 
-/**
- * @brief Copies data from one ar_file to another
- * 
- * Preconditions: dst is not NULL, src is not NULL
- * 
- * Postconditions: Memory has been allocated for *dst, src has been copied to *dst
- *
- * @param dst Pointer to pointer to destination ar_file structure
- * @param src Pointer to source ar_file structure
- *
- * @note dst is a pointer to a pointer because this function allocates memory for dst, and C does not allow variables to be passed by reference. It's ugly, I'm sorry. I didn't know we could use C++ data structures until I had already written this god awful data structure.
- */
-void _ar_file_copy(void **dst, void *src);
+void _ar_member_name(struct ar_hdr *hdr, char *name);
+size_t _ar_member_size(struct ar_hdr *hdr);
 
-/**
- * @brief Frees all memory used by an ar_file structure
- * 
- * Preconditions: res is not NULL
- * 
- * Postconditions: Memory allocated for file data has been released, memory allocated for res has been released
- *
- * @param res Pointer to ar_file structure
- */
-void _ar_file_release(void *res);
-
-void ar_init(struct ar *a) {
-	list_init(&a->files, _ar_file_copy, _ar_file_release);
-}
-
-void ar_free(struct ar *a) {
-	if (a->fd >= 0) {
-		ar_close(a);
-	}
-
-	list_free(&a->files);
-}
-
-bool ar_open(struct ar *a, const char *path) {
+int ar_open(const char *path) {
 	struct stat st;
 	bool create;
+	int fd;
 
-	assert(a);
 	assert(path);
 
 	if (stat(path, &st) == 0) {
@@ -162,249 +132,257 @@ bool ar_open(struct ar *a, const char *path) {
 		create = true;
 	}
 	
-	a->fd = open(path, O_RDWR | O_CREAT, DEFAULT_PERMS);
-	if (a->fd == -1) {
+	fd = open(path, O_RDWR | O_CREAT, DEFAULT_PERMS);
+	if (fd == -1) {
 		// Report error
 		fprintf(stderr, "File (%s) could not be opened\n", path);
-		return false;
+		return -1;
 	}
 
-	lseek(a->fd, 0, SEEK_SET);
+	lseek(fd, 0, SEEK_SET);
 
 	if (create == false) {
-		if (!_ar_check_global_hdr(a)) {
+		if (!_ar_check_global_hdr(fd)) {
 			// Report error
 			fprintf(stderr, "Bad global header\n");
 
 			// Clean up
-			ar_close(a);
+			ar_close(fd);
+
+			return -1;
+		}
+	} else {
+		if (_ar_write_global_hdr(fd) == false) {
+			// Report error
+			fprintf(stderr, "Unable to write global header\n");
+
+			// Clean up
+			ar_close(fd);
+
+			return -1;
+		}
+	}
+
+	return fd;
+}
+
+void ar_close(int fd) {
+	assert(fd >= 0);
+
+	if (close(fd) == -1) {
+		// Report error
+		fprintf(stderr, "File could not be closed\n");
+	}
+}
+
+bool ar_append(int fd, const char *path) {
+	struct ar_hdr hdr;
+	struct stat st;
+	char buf[BLOCK_SIZE];
+	int append_fd;
+
+	stat(path, &st);
+
+	append_fd = open(path, O_RDONLY);
+
+	if (append_fd < 0) {
+		// Report error
+		return false;
+	}
+
+	// TODO: Should strip any path preceding file name
+	snprintf(hdr.ar_name, SARFNAME, "%-16.16s", path);
+	snprintf(hdr.ar_date, SARFDATE, "%12.12u", st.st_mtime);
+	snprintf(hdr.ar_uid, SARFUID, "%6.6u", st.st_uid);
+	snprintf(hdr.ar_gid, SARFGID, "%6.6u", st.st_gid);
+	snprintf(hdr.ar_mode, SARFMODE, "%8.8o", st.st_mode);
+	snprintf(hdr.ar_size, SARFSIZE, "%10.10d", st.st_size);
+	memcpy(hdr.ar_fmag, ARFMAG, SARFMAG);
+
+	// If on an odd byte offset, write a newline
+	if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
+		if (write(fd, "\n", sizeof(char)) == -1) {
+			// Report error
+			fprintf(stderr, "Write error (line %d)\n", __LINE__);
+
+			// Clean up
+			close(append_fd);
+
+			return false;
+		}
+	}
+
+	if (write(fd, &hdr, sizeof(struct ar_hdr)) == -1) {
+		// Report error
+		fprintf(stderr, "Write error (line %d)\n", __LINE__);
+
+		// Clean up
+		close(append_fd);
+
+		return false;
+	}
+
+	while (lseek(append_fd, 0, SEEK_CUR) < st.st_size) {
+		off_t remaining = st.st_size - lseek(append_fd, 0, SEEK_CUR);
+		size_t wr_size = (remaining < BLOCK_SIZE) ? remaining : BLOCK_SIZE;
+
+		if (read(append_fd, buf, wr_size) == -1) {
+			// Report error
+			fprintf(stderr, "Read error (line %d)\n", __LINE__);
+
+			// Clean up
+			close(append_fd);
 
 			return false;
 		}
 
-		_ar_scan(a);
+		if (write(fd, buf, wr_size) == -1) {
+			// Report error
+			fprintf(stderr, "Write error (line %d)\n", __LINE__);
+
+			// Clean up
+			close(append_fd);
+
+			return false;
+		}
 	}
 
 	return true;
 }
 
-bool ar_close(struct ar *a) {
-	off_t total_sz;
+bool ar_remove(int fd, const char *name) {
+	struct ar_hdr hdr;
+	size_t ar_size;
+	size_t size;
+	off_t member_end;
+	off_t pos;
 
-	assert(a);
-	
-	if (a->fd < 0) {
-		return true;
-	}
+	assert(fd >= 0);
+	assert(name != NULL);
 
-	lseek(a->fd, 0, SEEK_SET);
- 
-	total_sz = 0;
-
-	write(a->fd, ARMAG, SARMAG);
-	total_sz += SARMAG;
-	
-	for (int i = 0; i < ar_nfiles(a); i++) {
-		struct ar_file *file = ar_get_file(a, i);
-		char size_str[11];
-		off_t size;
-		off_t written = 0;
-
-		memset(size_str, '\0', sizeof(size_str));
-		strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
-		size = strtol(size_str, NULL, 10);
-
-		// Write a single new line if we are not on an even byte offset
-		if ((lseek(a->fd, 0, SEEK_CUR) % 2) != 0) {
-			write(a->fd, "\n", sizeof(uint8_t));
-			total_sz += sizeof(uint8_t);
-		}
-
-		write(a->fd, &file->hdr, sizeof(struct ar_hdr));
-		total_sz += sizeof(struct ar_hdr);
-
-		while (written < size) {
-			int wr_size;
-
-			if ((size - written) < BLOCK_SIZE) {
-				wr_size = size - written;
-			} else {
-				wr_size = BLOCK_SIZE;
-			}
-
-			write(a->fd, file->data, wr_size); 
-			written += wr_size;
-		}
-
-		total_sz += size;
-	}
-
-	ftruncate(a->fd, total_sz);
-
-	if (close(a->fd) == -1) {
-		// Report error
-		fprintf(stderr, "File could not be closed\n");
+	if (_ar_seek(fd, name, &hdr) == false) {
 		return false;
 	}
 
-	a->fd = -1;
+	size = _ar_member_size(&hdr);
+
+	// Find beginning of file header
+	pos = lseek(fd, -sizeof(struct ar_hdr), SEEK_CUR);
+
+	// Get size of archive file
+	ar_size = lseek(fd, 0, SEEK_END);
+
+	// Return to beginning of file header
+	lseek(fd, pos, SEEK_SET);
+
+	member_end = pos + sizeof(struct ar_hdr) + size;
+
+	// If there is more data following this member
+	if (member_end < ar_size) {
+		// TODO: Shift data down
+
+		// TODO: Truncate extra newline if necessary
+		ftruncate(fd, ar_size - sizeof(struct ar_hdr) - size);
+	} else {
+		// Truncate last member
+		ftruncate(fd, pos);
+	}
+	
 	return true;
 }
 
-size_t ar_nfiles(struct ar *a) {
-	return list_size(&a->files);
-}
+bool ar_extract(int fd, const char *name) {
+	struct ar_hdr hdr;
+	size_t size;
+	size_t written;
+	int extract_fd;
 
-struct ar_file *ar_get_file(struct ar *a, size_t i) {
-	return (struct ar_file *)list_get(&a->files, i);
-}
+	assert(fd >= 0);
+	assert(name != NULL);
 
-bool ar_add_file(struct ar *a, const char *path) {
-	struct ar_file file;
-	struct stat st;
-	char *slash_location;
-	char name[17];
-	char date[13];
-	char uid[7];
-	char gid[7];
-	char mode[9];
-	char size[11];
-	int fd;
-
-	stat(path, &st);
-
-	fd = open(path, O_RDONLY);
-
-	if (fd < 0) {
-		// Report error
+	if (_ar_seek(fd, name, &hdr) == false) {
 		return false;
 	}
 
-	// Should strip any path preceding file name
-	snprintf(name, sizeof(name), "%-.16s", path);
-	slash_location = rindex(name, '/');
-
-	if (slash_location != NULL) {
-		memset(slash_location + 1, ' ', sizeof(name) - (slash_location - name));
+	extract_fd = creat(name, DEFAULT_PERMS);
+	if (extract_fd == -1) {
+		// Report error
 	}
 
-	snprintf(date, sizeof(date), "%12u", st.st_mtime);
-	snprintf(uid, sizeof(uid), "%6u", st.st_uid);
-	snprintf(gid, sizeof(gid), "%6u", st.st_gid);
-	snprintf(mode, sizeof(mode), "%8o", st.st_mode);
-	snprintf(size, sizeof(size), "%10u", st.st_size);
+	size = _ar_member_size(&hdr);
+	written = 0;
 
-	memcpy(file.hdr.ar_name, name, sizeof(file.hdr.ar_name));
-	memcpy(file.hdr.ar_date, date, sizeof(file.hdr.ar_date));
-	memcpy(file.hdr.ar_uid, uid, sizeof(file.hdr.ar_uid));
-	memcpy(file.hdr.ar_gid, gid, sizeof(file.hdr.ar_gid));
-	memcpy(file.hdr.ar_mode, mode, sizeof(file.hdr.ar_mode));
-	memcpy(file.hdr.ar_size, size, sizeof(file.hdr.ar_size));
-	memcpy(file.hdr.ar_fmag, ARFMAG, SARFMAG);
+	while (written < size) {
+		char buf[BLOCK_SIZE];
+		size_t wr_size;
 
-	file.data = (uint8_t *)malloc(st.st_size);
-	read(fd, file.data, st.st_size);
+		wr_size = (size - written < BLOCK_SIZE) ? size - written : BLOCK_SIZE;
 
-	list_add_back(&a->files, (void *)&file);
+		if (read(fd, buf, wr_size) == -1) {
+			// Report error
+			fprintf(stderr, "Read error (line %d)\n", __LINE__);
+
+			// Clean up
+			close(extract_fd);
+
+			return false;
+		}
+
+		if (write(extract_fd, buf, wr_size) == -1) {
+			// Report error
+			fprintf(stderr, "Write error (line %d)\n", __LINE__);
+
+			// Clean up
+			close(extract_fd);
+
+			return false;
+		}
+
+		written += wr_size;
+	}
+
+	if (close(extract_fd) == -1) {
+		// Report error
+		fprintf(stderr, "Could not close file (line %d)\n", __LINE__);
+
+		return false;
+	}
 
 	return true;
 }
 
-bool ar_remove_file(struct ar *a, const char *name) {
-	for (int i = 0; i < ar_nfiles(a); i++) {
-		struct ar_file *file = ar_get_file(a, i);
-		char *slash_location;
-		char fname[17];
+void ar_print_concise(int fd) {
+	off_t ar_size;
 
-		memset(fname, '\0', sizeof(fname));
-		memcpy(fname, file->hdr.ar_name, sizeof(file->hdr.ar_name));
-		slash_location = rindex(fname, '/');
-		if (slash_location != NULL) {
-			*slash_location = '\0';
-		}
-		
-		if (strcmp(fname, name) == 0) {
-			list_remove(&a->files, i);
-			return true;
-		}
-	}
-	
-	return false;
-}
+	assert(fd >= 0);
 
-bool ar_extract_file(struct ar *a, const char *name) {
-	for (int i = 0; i < ar_nfiles(a); i++) {
-		struct ar_file * file = ar_get_file(a, i);
-		if (memcmp(name, file->hdr.ar_name, strlen(name)) == 0) {
-			struct utimbuf tbuf;
-			char size_str[11];
-			char time_str[13];
-			char uid_str[7];
-			char gid_str[7];
-			char mode_str[9];
-			time_t modify;
-			int fd;
-			int size;
-			int mode;
+	ar_size = lseek(fd, 0, SEEK_END);
+	lseek(fd, SARMAG, SEEK_SET);
 
-			memset(size_str, '\0', sizeof(size_str));
-			memset(time_str, '\0', sizeof(time_str));
-			memset(mode_str, '\0', sizeof(mode_str));
-			strncpy(size_str, file->hdr.ar_size, sizeof(size_str));
-			strncpy(time_str, file->hdr.ar_date, sizeof(time_str));
-			strncpy(mode_str, file->hdr.ar_mode, sizeof(mode_str));
-			size = strtol(size_str, NULL, 10);
-			modify = strtol(time_str, NULL, 10);
-			mode = strtol(mode_str, NULL, 8);
-			
-			fd = creat(name, mode & PERM_MASK);
+	while (lseek(fd, 0, SEEK_CUR) < ar_size) {
+		struct ar_hdr hdr;
+		char name[SARFNAME + 1];
 
-			if (fd < 0) {
-				// Report error
-				return false;
-			}
-
-			write(fd, file->data, size);
-
-			close(fd);
-
-			chmod(name, mode & PERM_MASK);
-
-			tbuf.actime = modify;
-			tbuf.modtime = modify;
-			
-			if (utime(name, &tbuf) == -1) {
-				// Report error
-				return false;
-			}
-
-			return true;
-		}
-	}
-}
-
-void ar_print_concise(struct ar *a) {
-	for (int i = 0; i < ar_nfiles(a); i++) {
-		struct ar_hdr *hdr;
-
-		char *slash_location;
-		char name[17];
-		
-		hdr = &ar_get_file(a, i)->hdr;
-
-		memset(name, '\0', sizeof(name));
-		strncpy(name, hdr->ar_name, sizeof(name));
-
-		slash_location = rindex(name, '/');
-		if (slash_location != NULL) {
-			*slash_location = '\0'; // Replace the terminating / with a null
+		if (_ar_load_hdr(fd, &hdr) == false) {
+			// Report error
+			fprintf(stderr, "Could not load ar_hdr (line %d)\n", __LINE__);
+			return;
 		}
 
+		_ar_member_name(&hdr, name);
 		printf("%s\n", name);
+
+		// Skip past data
+		lseek(fd, _ar_member_size(&hdr), SEEK_CUR);
+
+		// If on an odd byte offset, seek ahead one byte
+		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
+			lseek(fd, 1, SEEK_CUR);
+		}
 	}
 }
 
-void ar_print_verbose(struct ar *a) {
+/*void ar_print_verbose(struct ar *a) {
 	for (int i = 0; i < ar_nfiles(a); i++) {
 		struct ar_hdr *hdr;
 		struct tm *time;
@@ -466,91 +444,53 @@ void ar_print_verbose(struct ar *a) {
 		strftime(ftime, SFTIME, "%b %d %H:%M %Y", time);
 		printf("%s %6d/%-6d %10d %s %s\n", perm_str, uid, gid, size, ftime, name);
 	}
-}
+}*/
 
-bool _ar_check_global_hdr(struct ar *a) {
+bool _ar_check_global_hdr(int fd) {
 	char hdr[SARMAG];
 	int init_pos;
 	bool hdr_good;
 
-	assert(a);
-	assert(a->fd >= 0);
+	assert(fd >= 0);
 
 	// Remember initial position
-   	init_pos = lseek(a->fd, 0, SEEK_CUR);
+   	init_pos = lseek(fd, 0, SEEK_CUR);
 
-	lseek(a->fd, 0, SEEK_SET);
-	read(a->fd, hdr, SARMAG);
+	lseek(fd, 0, SEEK_SET);
 
-	hdr_good = !memcmp(hdr, ARMAG, SARMAG);
+	if (read(fd, hdr, SARMAG) == -1) {
+		// Report error
+		fprintf(stderr, "Read error (line %d)\n", __LINE__);
+
+		return false;
+	}
+
+	hdr_good = (memcmp(hdr, ARMAG, SARMAG) == 0);
 
 	// Reset file position
-	lseek(a->fd, init_pos, SEEK_SET);
+	lseek(fd, init_pos, SEEK_SET);
 
 	return hdr_good;
 }
 
-bool _ar_scan(struct ar *a) {
-	off_t file_size;
+bool _ar_write_global_hdr(int fd) {
+	assert(fd >= 0);
 
-	assert(a);
-	assert(a->fd >= 0);
+	lseek(fd, 0, SEEK_SET);
 
-	file_size = lseek(a->fd, 0, SEEK_END);
-
-	// Set file position to the first file hdr
-	lseek(a->fd, SARMAG, SEEK_SET);
-
-	while (lseek(a->fd, 0, SEEK_CUR) < file_size - 1) {
-		if (_ar_load_file(a) == false) {
-			fprintf(stderr, "Failed to scan\n");
-			return false;
-		}
-
-		if ((lseek(a->fd, 0, SEEK_CUR) % 2) == 1) {
-			// All file headers begin on an even byte boundary
-			// Advance to even byte offset if on an odd
-			lseek(a->fd, 1, SEEK_CUR);
-		}
+	if (write(fd, ARMAG, SARMAG) == -1) {
+		fprintf(stderr, "Write error (line %d)\n", __LINE__);
+		return false;
 	}
 
 	return true;
 }
 
-bool _ar_load_file(struct ar *a) {
-	struct ar_file *file;
-	assert(a);
-	assert(a->fd >= 0);
-
-	file = (struct ar_file *)malloc(sizeof(struct ar_file));
-	if (file == NULL) {
-		fprintf(stderr, "Could not allocate memory for ar_file\n");
-		return false;
-	}
-
-	if (!_ar_load_hdr(a, &file->hdr)) {
-		fprintf(stderr, "Error loading file header\n");
-		free(file);
-		return false;
-	}
-
-	if (!_ar_load_data(a, file)) {
-		fprintf(stderr, "Error loading file data\n");
-		free(file);
-		return false;
-	}
-
-	list_add_back(&a->files, (void *)file);
-
-	return true;
-}
-
-bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
-	assert(a);
-	assert(a->fd >= 0);
+bool _ar_load_hdr(int fd, struct ar_hdr *hdr) {
+	assert(fd >= 0);
 	assert(hdr);
 
-	if (read(a->fd, hdr, sizeof(struct ar_hdr)) == -1) {
+	if (read(fd, hdr, sizeof(struct ar_hdr)) == -1) {
 		fprintf(stderr, "Error reading header data\n");
 		return false;
 	}
@@ -564,50 +504,57 @@ bool _ar_load_hdr(struct ar *a, struct ar_hdr *hdr) {
 	return true;
 }
 
-bool _ar_load_data(struct ar *a, struct ar_file *file) {
-	int data_size;
+bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
+	off_t size;
 
-	assert(a);
-	assert(a->fd >= 0);
-	assert(file);
+	assert(fd >= 0);
+	assert(name != NULL);
 
-	if (file->data != NULL) {
-		free(file->data);
-	}
+	// Get file size
+	size = lseek(fd, 0, SEEK_END);
 
-	data_size = atoi(file->hdr.ar_size);
-	file->data = (uint8_t *)malloc(data_size * sizeof(uint8_t));
-	if (file->data == NULL) {
-		// Report error
-		return false;
-	}
+	// Seek to end of global header
+	lseek(fd, SARMAG, SEEK_SET);
 
-	if (read(a->fd, file->data, data_size) == -1) {
-		// Report error
-		free(file->data);
-		return false;
-	}
-
-	return true;
-}
-
-void _ar_file_copy(void **dst, void *src) {
-	assert(dst);
-	assert(src);
-
-	*dst = (struct ar_file *)malloc(sizeof(struct ar_file));
-	assert(*dst);
-
-	memcpy(*dst, src, sizeof(struct ar_file));
-}
-
-void _ar_file_release(void *res) {
-	if (res != NULL) {
-		if (((struct ar_file *)res)->data != NULL) {
-			free(((struct ar_file *)res)->data);
+	while (lseek(fd, 0, SEEK_CUR) < size) {
+		if (_ar_load_hdr(fd, hdr) == false) {
+			return false;
 		}
 
-		free(res);
+		if (memcmp(name, hdr->ar_name, strlen(name)) == 0) {
+			return true;
+		}
+
+		// Seek to the next header
+		lseek(fd, _ar_member_size(hdr), SEEK_CUR);
+
+		// If on an odd byte offset, seek ahead one byte
+		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
+			lseek(fd, 1, SEEK_CUR);
+		}
+	}
+
+	return false;
+}
+
+void _ar_member_name(struct ar_hdr *hdr, char *name) {
+	assert(hdr != NULL);
+
+	memcpy(name, hdr->ar_name, SARFNAME);
+	name[SARFNAME + 1] = '\0';
+
+	while ((name[strlen(name)] == ' ') || (name[strlen(name)] == '/')) {
+		name[strlen(name)] = '\0';
 	}
 }
 
+size_t _ar_member_size(struct ar_hdr *hdr) {
+	char size_str[SARFSIZE + 1];
+
+	assert(hdr != NULL);
+
+	memcpy(size_str, hdr->ar_size, SARFSIZE);
+	size_str[SARFSIZE] = '\0';
+
+	return strtol(size_str, NULL, 10);
+}
