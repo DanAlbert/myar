@@ -128,6 +128,8 @@ gid_t _ar_member_gid(struct ar_hdr *hdr);
 mode_t _ar_member_mode(struct ar_hdr *hdr);
 off_t _ar_member_size(struct ar_hdr *hdr);
 
+bool block_read(int fd, uint8_t *buf, off_t from, size_t size);
+bool block_write(int fd, uint8_t *buf, off_t to, size_t size);
 bool block_copy(int fd, off_t from, off_t to, size_t size);
 
 int ar_open(const char *path) {
@@ -281,7 +283,8 @@ bool ar_remove(int fd, const char *name) {
 	struct ar_hdr hdr;
 	size_t ar_size;
 	size_t size;
-	off_t member_end;
+	off_t next_member;
+	off_t even_offset;
 	off_t pos;
 
 	assert(fd >= 0);
@@ -291,27 +294,28 @@ bool ar_remove(int fd, const char *name) {
 		return false;
 	}
 
-	size = _ar_member_size(&hdr);
-
 	// Find beginning of file header
 	pos = lseek(fd, -sizeof(struct ar_hdr), SEEK_CUR);
 
 	// Get size of archive file
-	ar_size = lseek(fd, 0, SEEK_END);
+	ar_size = lseek(fd, 0, SEEK_END) + 1;
 
 	// Return to beginning of file header
 	lseek(fd, pos, SEEK_SET);
 
-	member_end = pos + sizeof(struct ar_hdr) + size;
+	next_member = pos + sizeof(struct ar_hdr) + size;
+
+	even_offset = ((next_member % 2) == 1) ? 1 : 0;
+	size = ar_size - next_member;
 
 	// If there is more data following this member
-	if (member_end < ar_size) {
-		if (block_copy(fd, member_end, pos, size) == false) {
+	if (next_member < ar_size) {
+		if (block_copy(fd, next_member + even_offset, pos, size) == false) {
 			fprintf(stderr, "Error while shifting data\n");
 			return false;
 		}
 
-		ftruncate(fd, ar_size - sizeof(struct ar_hdr) - size);
+		ftruncate(fd, pos + size);
 	} else {
 		// Truncate last member
 		ftruncate(fd, pos);
@@ -538,11 +542,13 @@ bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
 	lseek(fd, SARMAG, SEEK_SET);
 
 	while (lseek(fd, 0, SEEK_CUR) < size) {
+		char member_name[SARFNAME + 1];
 		if (_ar_load_hdr(fd, hdr) == false) {
 			return false;
 		}
 
-		if (memcmp(name, hdr->ar_name, strlen(name)) == 0) {
+		_ar_member_name(hdr, member_name);
+		if (strcmp(name, member_name) == 0) {
 			return true;
 		}
 
@@ -576,8 +582,8 @@ void _ar_mode_str(mode_t mode, char *str) {
 void _ar_member_name(struct ar_hdr *hdr, char *name) {
 	assert(hdr != NULL);
 
+	memset(name, '\0', SARFNAME + 1);
 	memcpy(name, hdr->ar_name, SARFNAME);
-	name[SARFNAME + 1] = '\0';
 
 	while ((name[strlen(name)] == ' ') || (name[strlen(name)] == '/')) {
 		name[strlen(name)] = '\0';
@@ -639,6 +645,54 @@ off_t _ar_member_size(struct ar_hdr *hdr) {
 	return strtol(str, NULL, 10);
 }
 
+bool block_read(int fd, uint8_t *buf, off_t from, size_t size) {
+	size_t done;
+
+	assert(fd >= 0);
+	assert(buf != NULL);
+	assert(from >= 0);
+	assert(size > 0);
+	assert(from + size <= lseek(fd, 0, SEEK_END) + 1);
+
+	done = 0;
+	lseek(fd, from, SEEK_SET);
+	while (done < size) {
+		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		if (read(fd, buf + done, count) == -1) {
+			perror("Read error");
+			return false;
+		}
+
+		done += count;
+	}
+
+	return true;
+}
+
+bool block_write(int fd, uint8_t *buf, off_t to, size_t size) {
+	size_t done;
+
+	assert(fd >= 0);
+	assert(buf != NULL);
+	assert(to >= 0);
+	assert(size > 0);
+	assert(to + size <= lseek(fd, 0, SEEK_END) + 1);
+
+	done = 0;
+	lseek(fd, to, SEEK_SET);
+	while (done < size) {
+		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		if (write(fd, buf + done, count) == -1) {
+			perror("Write error");
+			return false;
+		}
+
+		done += count;
+	}
+
+	return true;
+}
+
 bool block_copy(int fd, off_t from, off_t to, size_t size) {
 	uint8_t *buf;
 	size_t done;
@@ -647,8 +701,8 @@ bool block_copy(int fd, off_t from, off_t to, size_t size) {
 	assert(from >= 0);
 	assert(to >= 0);
 	assert(size > 0);
-	assert(from + size <= lseek(fd, 0, SEEK_END));
-	assert(to + size <= lseek(fd, 0, SEEK_END));
+	assert(from + size <= lseek(fd, 0, SEEK_END) + 1);
+	assert(to + size <= lseek(fd, 0, SEEK_END) + 1);
 
 	buf = (uint8_t *)malloc(size);
 	if (buf == NULL) {
@@ -656,30 +710,14 @@ bool block_copy(int fd, off_t from, off_t to, size_t size) {
 		return false;
 	}
 
-	done = 0;
-	lseek(fd, from, SEEK_SET);
-	while (done < size) {
-		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
-		if (read(fd, buf + done, count) == -1) {
-			perror("Read error");
-			free(buf);
-			return false;
-		}
-
-		done += count;
+	if (block_read(fd, buf, from, size) == false) {
+		free(buf);
+		return false;
 	}
 
-	done = 0;
-	lseek(fd, to, SEEK_SET);
-	while (done < size) {
-		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
-		if (write(fd, buf + done, count) == -1) {
-			perror("Write error");
-			free(buf);
-			return false;
-		}
-
-		done += count;
+	if (block_write(fd, buf, to, size) == false) {
+		free(buf);
+		return false;
 	}
 
 	free(buf);
