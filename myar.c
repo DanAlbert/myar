@@ -291,6 +291,7 @@ bool ar_remove(int fd, const char *name) {
 	assert(name != NULL);
 
 	if (_ar_seek(fd, name, &hdr) == false) {
+		fprintf(stderr, "Could not find member in archive\n");
 		return false;
 	}
 
@@ -585,8 +586,8 @@ void _ar_member_name(struct ar_hdr *hdr, char *name) {
 	memset(name, '\0', SARFNAME + 1);
 	memcpy(name, hdr->ar_name, SARFNAME);
 
-	while ((name[strlen(name)] == ' ') || (name[strlen(name)] == '/')) {
-		name[strlen(name)] = '\0';
+	while ((name[strlen(name) - 1] == ' ') || (name[strlen(name) - 1] == '/')) {
+		name[strlen(name) - 1] = '\0';
 	}
 }
 
