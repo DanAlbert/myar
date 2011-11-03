@@ -323,10 +323,10 @@ bool ar_remove(int fd, const char *name) {
 				block_write(temp_fd, buf, lseek(temp_fd, 0, SEEK_CUR), size);
 				free(buf);
 			}
+		}
 
-			if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
-				lseek(fd, 1, SEEK_CUR);
-			}
+		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
+			lseek(fd, 1, SEEK_CUR);
 		}
 	}
 
