@@ -2,7 +2,7 @@
  * @file main.c
  * @author Dan Albert
  * @date Created 10/17/2011
- * @date Last updated 11/01/2011
+ * @date Last updated 11/02/2011
  * @version 1.0
  *
  * @section LICENSE
@@ -64,7 +64,23 @@
 #define MODE_EXTRACT		6
 
 /**
+ * @brief Append all regular files in the current directory to the archive.
+ *
+ * Preconditions: fd is a valid file descriptor, exclude is not NULL
+ *
+ * Postconditions: The archive contains all regular files in the current working directory
+ *
+ * @param fd File descriptor of an open archive
+ * @param exclude File to exclude from the current directory. Typically the archive itself.
+ */
+void append_all(int fd, const char *exclude);
+
+/**
  * @brief Print usage message and exit.
+ *
+ * Preconditions:
+ *
+ * Postconditions: Program exits
  */
 void usage(void);
 
@@ -83,6 +99,7 @@ int main(int argc, char **argv) {
 	int c;
 	int fd;
 
+	// Process command line arguments and set mode
 	while ((c = getopt(argc, argv, "Adqtvx")) != -1) {
 		switch (c) {
 		case 'A':
@@ -132,10 +149,12 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	// Make sure a mode was set
 	if (mode == MODE_NONE) {
 		usage();
 	}
 
+	// Check for archive path, else error
 	if (optind < argc) {
 		archive_path = (char *)malloc((strlen(argv[optind]) + 1) * sizeof(char));
 		if (archive_path == NULL) {
@@ -154,6 +173,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
+	// All modes run at least once, loop for all args
 	do {
 		switch (mode) {
 		case MODE_APPEND_ALL:
@@ -196,6 +216,7 @@ void append_all(int fd, const char *exclude) {
 		return;
 	}
 
+	// Append each regular file
 	while ((de = readdir(dp)) != NULL) {
 		if ((de->d_type == DT_REG) && (strcmp(de->d_name, exclude) != 0)) {
 			if (ar_append(fd, de->d_name) == false) {
