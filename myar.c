@@ -51,6 +51,9 @@
 /// Maximum number of bytes to write in a single write() call
 #define BLOCK_SIZE 4096
 
+/// Name of temporary archive for remove
+#define TEMP_AR_NAME ".temp.a"
+
 /// Size of file time string for verbose output
 #define SFTIME 18
 
@@ -281,47 +284,67 @@ bool ar_append(int fd, const char *path) {
 
 bool ar_remove(int fd, const char *name) {
 	struct ar_hdr hdr;
-	size_t ar_size;
-	size_t size;
-	off_t next_member;
-	off_t even_offset;
-	off_t pos;
+	struct stat st;
+	uint8_t *buf;
+	int temp_fd;
 
 	assert(fd >= 0);
 	assert(name != NULL);
 
-	if (_ar_seek(fd, name, &hdr) == false) {
-		fprintf(stderr, "Could not find member in archive\n");
-		return false;
-	}
+	fstat(fd, &st);
 
-	// Find beginning of file header
-	pos = lseek(fd, -sizeof(struct ar_hdr), SEEK_CUR);
+	temp_fd = open(TEMP_AR_NAME, O_CREAT | O_TRUNC | O_RDWR, DEFAULT_PERMS);
+	write(temp_fd, ARMAG, SARMAG);
+	lseek(fd, SARMAG, SEEK_SET);
 
-	// Get size of archive file
-	ar_size = lseek(fd, 0, SEEK_END) + 1;
+	while (lseek(fd, 0, SEEK_CUR) < st.st_size) {
+		char member_name[SARFNAME + 1];
+		size_t size;
+		off_t next_member;
+		off_t pos;
 
-	// Return to beginning of file header
-	lseek(fd, pos, SEEK_SET);
+		_ar_load_hdr(fd, &hdr);
+		size = _ar_member_size(&hdr);
+		_ar_member_name(&hdr, member_name);
 
-	next_member = pos + sizeof(struct ar_hdr) + size;
+		if (strcmp(member_name, name) == 0) {
+			// Skip the file
+			lseek(fd, size, SEEK_CUR);
+		} else {
+			if ((lseek(temp_fd, 0, SEEK_CUR) % 2) == 1) {
+				write(temp_fd, "\n", sizeof(char));
+			}
 
-	even_offset = ((next_member % 2) == 1) ? 1 : 0;
-	size = ar_size - next_member;
+			write(temp_fd, &hdr, sizeof(struct ar_hdr));
 
-	// If there is more data following this member
-	if (next_member < ar_size) {
-		if (block_copy(fd, next_member + even_offset, pos, size) == false) {
-			fprintf(stderr, "Error while shifting data\n");
-			return false;
+			if (size > 0) {
+				buf = (uint8_t *)malloc(size * sizeof(uint8_t));
+				block_read(fd, buf, lseek(fd, 0, SEEK_CUR), size);
+				block_write(temp_fd, buf, lseek(temp_fd, 0, SEEK_CUR), size);
+				free(buf);
+			}
+
+			if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
+				lseek(fd, 1, SEEK_CUR);
+			}
 		}
-
-		ftruncate(fd, pos + size);
-	} else {
-		// Truncate last member
-		ftruncate(fd, pos);
 	}
-	
+
+	if (ftruncate(fd, 0) == -1) {
+		perror("Could not truncate archive");
+	}
+
+	if (fstat(temp_fd, &st) == -1) {
+		perror("Could not stat temp file");
+	}
+
+	buf = (uint8_t *)malloc(st.st_size * sizeof(uint8_t));
+	block_read(temp_fd, buf, lseek(temp_fd, 0, SEEK_SET), st.st_size);
+	block_write(fd, buf, lseek(fd, 0, SEEK_SET), st.st_size);
+
+	close(temp_fd);
+	unlink(TEMP_AR_NAME);
+
 	return true;
 }
 
@@ -653,7 +676,7 @@ bool block_read(int fd, uint8_t *buf, off_t from, size_t size) {
 	assert(buf != NULL);
 	assert(from >= 0);
 	assert(size > 0);
-	assert(from + size <= lseek(fd, 0, SEEK_END) + 1);
+	assert(from + size <= lseek(fd, 0, SEEK_END));
 
 	done = 0;
 	lseek(fd, from, SEEK_SET);
@@ -677,7 +700,6 @@ bool block_write(int fd, uint8_t *buf, off_t to, size_t size) {
 	assert(buf != NULL);
 	assert(to >= 0);
 	assert(size > 0);
-	assert(to + size <= lseek(fd, 0, SEEK_END) + 1);
 
 	done = 0;
 	lseek(fd, to, SEEK_SET);
@@ -702,8 +724,8 @@ bool block_copy(int fd, off_t from, off_t to, size_t size) {
 	assert(from >= 0);
 	assert(to >= 0);
 	assert(size > 0);
-	assert(from + size <= lseek(fd, 0, SEEK_END) + 1);
-	assert(to + size <= lseek(fd, 0, SEEK_END) + 1);
+	assert(from + size <= lseek(fd, 0, SEEK_END));
+	assert(to + size <= lseek(fd, 0, SEEK_END));
 
 	buf = (uint8_t *)malloc(size);
 	if (buf == NULL) {
