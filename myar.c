@@ -91,7 +91,7 @@
  * @param fd File descriptor of an open archive
  * @return true if magic number is valid, false otherwise
  */
-bool _ar_check_global_hdr(int fd);
+bool ar_check_global_hdr(int fd);
 
 /**
  * @brief Writes ar file magic number to the beginning of a file.
@@ -104,7 +104,7 @@ bool _ar_check_global_hdr(int fd);
  * @param fd File descriptor of an open archive
  * @return true on success, false otherwise
  */
-bool _ar_write_global_hdr(int fd);
+bool ar_write_global_hdr(int fd);
 
 /**
  * @brief Loads file header from archive file
@@ -118,7 +118,7 @@ bool _ar_write_global_hdr(int fd);
  * @param hdr Pointer to ar_hdr to load data into
  * @return true on success, false otherwise
  */
-bool _ar_load_hdr(int fd, struct ar_hdr *hdr);
+bool ar_load_hdr(int fd, struct ar_hdr *hdr);
 
 /**
  * @brief Searches through the archive for specific member and loads header data.
@@ -132,7 +132,7 @@ bool _ar_load_hdr(int fd, struct ar_hdr *hdr);
  * @param name Name of the member to seek to
  * @param hdr Pointer to ar_hdr to load data into
  */
-bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr);
+bool ar_seek(int fd, const char *name, struct ar_hdr *hdr);
 
 /**
  * @brief Converts a mode integer to an ASCII permissions string.
@@ -144,7 +144,7 @@ bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr);
  * @param mode File mode integer
  * @param str Character array of size SFMODE to load permissions string into
  */
-void _ar_mode_str(mode_t mode, char *str);
+void ar_mode_str(mode_t mode, char *str);
 
 /**
  * @brief Retrieves a null terminated member name from an ar_hdr structure.
@@ -157,7 +157,7 @@ void _ar_mode_str(mode_t mode, char *str);
  * @param hdr Pointer to ar_hdr to retrieve member name from
  * @param name Character array of size SARFNAME + 1 to load the member name into
  */
-void _ar_member_name(struct ar_hdr *hdr, char *name);
+void ar_member_name(struct ar_hdr *hdr, char *name);
 
 /**
  * @brief Returns a UNIX timestamp from an ar_hdr structure.
@@ -169,7 +169,7 @@ void _ar_member_name(struct ar_hdr *hdr, char *name);
  * @param hdr Pointer to ar_hdr to retrieve member name from
  * @return Integer representation of the UNIX timestamp
  */
-time_t _ar_member_date(struct ar_hdr *hdr);
+time_t ar_member_date(struct ar_hdr *hdr);
 
 /**
  * @brief Returns the owner's user ID from an ar_hdr structure.
@@ -181,7 +181,7 @@ time_t _ar_member_date(struct ar_hdr *hdr);
  * @param hdr Pointer to ar_hdr to retrieve owner's user ID from
  * @return File owner's user ID
  */
-uid_t _ar_member_uid(struct ar_hdr *hdr);
+uid_t ar_member_uid(struct ar_hdr *hdr);
 
 /**
  * @brief Returns the owning group's user ID from an ar_hdr structure.
@@ -193,7 +193,7 @@ uid_t _ar_member_uid(struct ar_hdr *hdr);
  * @param hdr Pointer to ar_hdr to retrieve the owning group's ID from
  * @return File owning group's group ID
  */
-gid_t _ar_member_gid(struct ar_hdr *hdr);
+gid_t ar_member_gid(struct ar_hdr *hdr);
 
 /**
  * @brief Returns a file's mode from an ar_hdr structure.
@@ -205,7 +205,7 @@ gid_t _ar_member_gid(struct ar_hdr *hdr);
  * @param hdr Pointer to ar_hdr to retrieve the file's mode from
  * @return File mode
  */
-mode_t _ar_member_mode(struct ar_hdr *hdr);
+mode_t ar_member_mode(struct ar_hdr *hdr);
 
 /**
  * @brief Returns a file's size ID from an ar_hdr structure.
@@ -217,7 +217,7 @@ mode_t _ar_member_mode(struct ar_hdr *hdr);
  * @param hdr Pointer to ar_hdr to retrieve the file's size from
  * @return File size
  */
-off_t _ar_member_size(struct ar_hdr *hdr);
+off_t ar_member_size(struct ar_hdr *hdr);
 
 /**
  * @brief Read data from a file in chunks of BLOCK_SIZE bytes.
@@ -278,7 +278,7 @@ int ar_open(const char *path) {
 
 	if (create == false) {
 		// Verify that the archive is valid
-		if (!_ar_check_global_hdr(fd)) {
+		if (!ar_check_global_hdr(fd)) {
 			// Report error
 			fprintf(stderr, "Bad global header\n");
 
@@ -289,7 +289,7 @@ int ar_open(const char *path) {
 		}
 	} else {
 		// Write a global header
-		if (_ar_write_global_hdr(fd) == false) {
+		if (ar_write_global_hdr(fd) == false) {
 			// Report error
 			fprintf(stderr, "Unable to write global header\n");
 
@@ -429,9 +429,9 @@ bool ar_remove(int fd, const char *name) {
 		off_t next_member;
 		off_t pos;
 
-		_ar_load_hdr(fd, &hdr);
-		size = _ar_member_size(&hdr);
-		_ar_member_name(&hdr, member_name);
+		ar_load_hdr(fd, &hdr);
+		size = ar_member_size(&hdr);
+		ar_member_name(&hdr, member_name);
 
 		// Remove the member?
 		if (strcmp(member_name, name) == 0) {
@@ -493,7 +493,7 @@ bool ar_extract(int fd, const char *name) {
 	assert(name != NULL);
 
 	// Find the member
-	if (_ar_seek(fd, name, &hdr) == false) {
+	if (ar_seek(fd, name, &hdr) == false) {
 		printf("File %s not found in archive\n", name);
 		return false;
 	}
@@ -505,7 +505,7 @@ bool ar_extract(int fd, const char *name) {
 		return false;
 	}
 
-	size = _ar_member_size(&hdr);
+	size = ar_member_size(&hdr);
 	written = 0;
 
 	// Write the data to the file block by block
@@ -537,8 +537,8 @@ bool ar_extract(int fd, const char *name) {
 	}
 	
 	// Set file modification time
-	tbuf.actime = _ar_member_date(&hdr);
-	tbuf.modtime = _ar_member_date(&hdr);
+	tbuf.actime = ar_member_date(&hdr);
+	tbuf.modtime = ar_member_date(&hdr);
 
 	if (utime(name, &tbuf) == -1) {
 		perror("Unable set modification time");
@@ -562,17 +562,17 @@ void ar_print_concise(int fd) {
 		struct ar_hdr hdr;
 		char name[SARFNAME + 1];
 
-		if (_ar_load_hdr(fd, &hdr) == false) {
+		if (ar_load_hdr(fd, &hdr) == false) {
 			// Report error
 			fprintf(stderr, "Could not load ar_hdr (line %d)\n", __LINE__);
 			return;
 		}
 
-		_ar_member_name(&hdr, name);
+		ar_member_name(&hdr, name);
 		printf("%s\n", name);
 
 		// Skip past data
-		lseek(fd, _ar_member_size(&hdr), SEEK_CUR);
+		lseek(fd, ar_member_size(&hdr), SEEK_CUR);
 
 		// If on an odd byte offset, seek ahead one byte
 		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
@@ -598,29 +598,29 @@ void ar_print_verbose(int fd) {
 		char mode[SFMODE];
 		time_t mtime;
 
-		if (_ar_load_hdr(fd, &hdr) == false) {
+		if (ar_load_hdr(fd, &hdr) == false) {
 			// Report error
 			fprintf(stderr, "Could not load ar_hdr (line %d)\n", __LINE__);
 			return;
 		}
 
-		_ar_member_name(&hdr, name);
-		_ar_mode_str(_ar_member_mode(&hdr), mode);
+		ar_member_name(&hdr, name);
+		ar_mode_str(ar_member_mode(&hdr), mode);
 		
-		mtime = _ar_member_date(&hdr);
+		mtime = ar_member_date(&hdr);
 		time = localtime(&mtime);
 		strftime(ftime, SFTIME, "%b %d %H:%M %Y", time);
 		
 		printf("%s %6d/%-6d %10d %s %s\n",
 			mode,
-			_ar_member_uid(&hdr),
-			_ar_member_gid(&hdr),
-			_ar_member_size(&hdr),
+			ar_member_uid(&hdr),
+			ar_member_gid(&hdr),
+			ar_member_size(&hdr),
 			ftime,
 			name);
 
 		// Skip past data
-		lseek(fd, _ar_member_size(&hdr), SEEK_CUR);
+		lseek(fd, ar_member_size(&hdr), SEEK_CUR);
 
 		// If on an odd byte offset, seek ahead one byte
 		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
@@ -629,7 +629,7 @@ void ar_print_verbose(int fd) {
 	}
 }
 
-bool _ar_check_global_hdr(int fd) {
+bool ar_check_global_hdr(int fd) {
 	char hdr[SARMAG];
 	int init_pos;
 	bool hdr_good;
@@ -657,7 +657,7 @@ bool _ar_check_global_hdr(int fd) {
 	return hdr_good;
 }
 
-bool _ar_write_global_hdr(int fd) {
+bool ar_write_global_hdr(int fd) {
 	assert(fd >= 0);
 
 	lseek(fd, 0, SEEK_SET);
@@ -670,7 +670,7 @@ bool _ar_write_global_hdr(int fd) {
 	return true;
 }
 
-bool _ar_load_hdr(int fd, struct ar_hdr *hdr) {
+bool ar_load_hdr(int fd, struct ar_hdr *hdr) {
 	assert(fd >= 0);
 	assert(hdr);
 
@@ -689,7 +689,7 @@ bool _ar_load_hdr(int fd, struct ar_hdr *hdr) {
 	return true;
 }
 
-bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
+bool ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
 	off_t size;
 
 	assert(fd >= 0);
@@ -704,19 +704,19 @@ bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
 	// For each member
 	while (lseek(fd, 0, SEEK_CUR) < size) {
 		char member_name[SARFNAME + 1];
-		if (_ar_load_hdr(fd, hdr) == false) {
+		if (ar_load_hdr(fd, hdr) == false) {
 			return false;
 		}
 
 		// Did we find our file?
-		_ar_member_name(hdr, member_name);
+		ar_member_name(hdr, member_name);
 		if (strcmp(name, member_name) == 0) {
 			// Yes
 			return true;
 		}
 
 		// Seek to the next header
-		lseek(fd, _ar_member_size(hdr), SEEK_CUR);
+		lseek(fd, ar_member_size(hdr), SEEK_CUR);
 
 		// If on an odd byte offset, seek ahead one byte
 		if ((lseek(fd, 0, SEEK_CUR) % 2) == 1) {
@@ -727,7 +727,7 @@ bool _ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
 	return false;
 }
 
-void _ar_mode_str(mode_t mode, char *str) {
+void ar_mode_str(mode_t mode, char *str) {
 	assert(str != NULL);
 	
 	// Check each file permission
@@ -743,7 +743,7 @@ void _ar_mode_str(mode_t mode, char *str) {
 	str[9] = '\0';
 }
 
-void _ar_member_name(struct ar_hdr *hdr, char *name) {
+void ar_member_name(struct ar_hdr *hdr, char *name) {
 	assert(hdr != NULL);
 
 	memset(name, '\0', SARFNAME + 1);
@@ -755,7 +755,7 @@ void _ar_member_name(struct ar_hdr *hdr, char *name) {
 	}
 }
 
-time_t _ar_member_date(struct ar_hdr *hdr) {
+time_t ar_member_date(struct ar_hdr *hdr) {
 	char str[SARFDATE + 1];
 
 	assert(hdr != NULL);
@@ -766,7 +766,7 @@ time_t _ar_member_date(struct ar_hdr *hdr) {
 	return strtol(str, NULL, 10);
 }
 
-uid_t _ar_member_uid(struct ar_hdr *hdr) {
+uid_t ar_member_uid(struct ar_hdr *hdr) {
 	char str[SARFUID + 1];
 
 	assert(hdr != NULL);
@@ -777,7 +777,7 @@ uid_t _ar_member_uid(struct ar_hdr *hdr) {
 	return strtol(str, NULL, 10);
 }
 
-gid_t _ar_member_gid(struct ar_hdr *hdr) {
+gid_t ar_member_gid(struct ar_hdr *hdr) {
 	char str[SARFGID + 1];
 
 	assert(hdr != NULL);
@@ -788,7 +788,7 @@ gid_t _ar_member_gid(struct ar_hdr *hdr) {
 	return strtol(str, NULL, 10);
 }
 
-mode_t _ar_member_mode(struct ar_hdr *hdr) {
+mode_t ar_member_mode(struct ar_hdr *hdr) {
 	char str[SARFMODE + 1];
 
 	assert(hdr != NULL);
@@ -799,7 +799,7 @@ mode_t _ar_member_mode(struct ar_hdr *hdr) {
 	return strtol(str, NULL, 8);
 }
 
-off_t _ar_member_size(struct ar_hdr *hdr) {
+off_t ar_member_size(struct ar_hdr *hdr) {
 	char str[SARFSIZE + 1];
 
 	assert(hdr != NULL);
