@@ -2,32 +2,15 @@
  * @file main.c
  * @author Dan Albert
  * @date Created 10/17/2011
- * @date Last updated 11/02/2011
+ * @date Last updated 11/21/2011
  * @version 1.0
- *
- * @section LICENSE
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA 02110-1301, USA.
  * 
  * @section DESCRIPTION
  * 
  * This program will illustrate the use of file I/O on UNIX by maintaining a
  * UNIX archive library, in the standard archive format.
  * 
- * @see http://web.engr.oregonstate.edu/cgi-bin/cgiwrap/dmcgrath/classes/11F/cs311/index.cgi?file=project2
+ * @see http://tinyurl.com/7eb449f
  * 
  */
 #define _BSD_SOURCE 1
@@ -68,10 +51,12 @@
  *
  * Preconditions: fd is a valid file descriptor, exclude is not NULL
  *
- * Postconditions: The archive contains all regular files in the current working directory
+ * Postconditions: The archive contains all regular files in the current working
+ * directory
  *
  * @param fd File descriptor of an open archive
- * @param exclude File to exclude from the current directory. Typically the archive itself.
+ * @param exclude File to exclude from the current directory. Typically the
+ * archive itself.
  */
 void append_all(int fd, const char *exclude);
 
@@ -87,7 +72,8 @@ void usage(void);
 /**
  * @brief Program entry point.
  *
- * Parses command line arguments and dispatches necessary information to the proper functions.
+ * Parses command line arguments and dispatches necessary information to the
+ * proper functions.
  *
  * @param argc Number of command line arguments
  * @param argv Array of strings containing command line arguments
