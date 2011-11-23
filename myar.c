@@ -298,6 +298,7 @@ void ar_close(int fd) {
 bool ar_append(int fd, const char *path) {
 	struct ar_hdr hdr;
 	struct stat st;
+	char buf[BLOCK_SIZE]; // Read buffer
 	char name[SARFNAME + 1];
 	char date[SARFDATE + 1];
 	char uid[SARFUID + 1];
@@ -361,7 +362,6 @@ bool ar_append(int fd, const char *path) {
 
 	// Read data from file and append to archive block by block
 	while (lseek(append_fd, 0, SEEK_CUR) < st.st_size) {
-		char buf[BLOCK_SIZE];
 		off_t remaining = st.st_size - lseek(append_fd, 0, SEEK_CUR);
 		size_t wr_size = (remaining < BLOCK_SIZE) ? remaining : BLOCK_SIZE;
 
@@ -390,6 +390,11 @@ bool ar_append(int fd, const char *path) {
 }
 
 bool ar_remove(int fd, const char *name) {
+	char member_name[SARFNAME + 1];
+	size_t size;
+	off_t next_member;
+	off_t pos;
+
 	struct ar_hdr hdr;
 	struct stat st;
 	uint8_t *buf;
@@ -407,11 +412,6 @@ bool ar_remove(int fd, const char *name) {
 
 	// For each file in the archive
 	while (lseek(fd, 0, SEEK_CUR) < st.st_size) {
-		char member_name[SARFNAME + 1];
-		size_t size;
-		off_t next_member;
-		off_t pos;
-
 		ar_load_hdr(fd, &hdr);
 		size = ar_member_size(&hdr);
 		ar_member_name(&hdr, member_name);
@@ -466,6 +466,9 @@ bool ar_remove(int fd, const char *name) {
 }
 
 bool ar_extract(int fd, const char *name) {
+	char buf[BLOCK_SIZE]; // Write buffer
+	size_t wr_size;
+
 	struct ar_hdr hdr;
 	struct utimbuf tbuf;
 	size_t size;
@@ -493,9 +496,6 @@ bool ar_extract(int fd, const char *name) {
 
 	// Write the data to the file block by block
 	while (written < size) {
-		char buf[BLOCK_SIZE];
-		size_t wr_size;
-
 		wr_size = (size - written < BLOCK_SIZE) ? size - written : BLOCK_SIZE;
 
 		if (read(fd, buf, wr_size) == -1) {
@@ -565,6 +565,12 @@ void ar_print_concise(int fd) {
 }
 
 void ar_print_verbose(int fd) {
+	struct ar_hdr hdr;
+	struct tm *time;
+	char name[SARFNAME + 1];
+	char ftime[SFTIME];
+	char mode[SFMODE];
+	time_t mtime;
 	off_t ar_size;
 
 	assert(fd >= 0);
@@ -574,13 +580,6 @@ void ar_print_verbose(int fd) {
 
 	// For each member
 	while (lseek(fd, 0, SEEK_CUR) < ar_size) {
-		struct ar_hdr hdr;
-		struct tm *time;
-		char name[SARFNAME + 1];
-		char ftime[SFTIME];
-		char mode[SFMODE];
-		time_t mtime;
-
 		if (ar_load_hdr(fd, &hdr) == false) {
 			// Report error
 			fprintf(stderr, "Could not load ar_hdr (line %d)\n", __LINE__);
@@ -673,6 +672,7 @@ bool ar_load_hdr(int fd, struct ar_hdr *hdr) {
 }
 
 bool ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
+	char member_name[SARFNAME + 1];
 	off_t size;
 
 	assert(fd >= 0);
@@ -686,7 +686,6 @@ bool ar_seek(int fd, const char *name, struct ar_hdr *hdr) {
 
 	// For each member
 	while (lseek(fd, 0, SEEK_CUR) < size) {
-		char member_name[SARFNAME + 1];
 		if (ar_load_hdr(fd, hdr) == false) {
 			return false;
 		}
@@ -794,6 +793,7 @@ off_t ar_member_size(struct ar_hdr *hdr) {
 }
 
 bool block_read(int fd, uint8_t *buf, off_t from, size_t size) {
+	size_t count;
 	size_t done;
 
 	assert(fd >= 0);
@@ -805,7 +805,7 @@ bool block_read(int fd, uint8_t *buf, off_t from, size_t size) {
 	done = 0;
 	lseek(fd, from, SEEK_SET);
 	while (done < size) {
-		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
 		if (read(fd, buf + done, count) == -1) {
 			perror("Read error");
 			return false;
@@ -818,6 +818,7 @@ bool block_read(int fd, uint8_t *buf, off_t from, size_t size) {
 }
 
 bool block_write(int fd, uint8_t *buf, off_t to, size_t size) {
+	size_t count;
 	size_t done;
 
 	assert(fd >= 0);
@@ -828,7 +829,7 @@ bool block_write(int fd, uint8_t *buf, off_t to, size_t size) {
 	done = 0;
 	lseek(fd, to, SEEK_SET);
 	while (done < size) {
-		size_t count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
+		count = ((size - done) < BLOCK_SIZE) ? (size - done) : BLOCK_SIZE;
 		if (write(fd, buf + done, count) == -1) {
 			perror("Write error");
 			return false;
