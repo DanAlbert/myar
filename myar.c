@@ -305,6 +305,8 @@ bool ar_append(int fd, const char *path) {
 	char gid[SARFGID + 1];
 	char mode[SARFMODE + 1];
 	char size[SARFSIZE + 1];
+	off_t remaining;
+	off_t wr_size;
 	int append_fd;
 
 	stat(path, &st);
@@ -362,8 +364,8 @@ bool ar_append(int fd, const char *path) {
 
 	// Read data from file and append to archive block by block
 	while (lseek(append_fd, 0, SEEK_CUR) < st.st_size) {
-		off_t remaining = st.st_size - lseek(append_fd, 0, SEEK_CUR);
-		size_t wr_size = (remaining < BLOCK_SIZE) ? remaining : BLOCK_SIZE;
+		remaining = st.st_size - lseek(append_fd, 0, SEEK_CUR);
+		wr_size = (remaining < BLOCK_SIZE) ? remaining : BLOCK_SIZE;
 
 		if (read(append_fd, buf, wr_size) == -1) {
 			// Report error
@@ -533,6 +535,8 @@ bool ar_extract(int fd, const char *name) {
 }
 
 void ar_print_concise(int fd) {
+	struct ar_hdr hdr;
+	char name[SARFNAME + 1];
 	off_t ar_size;
 
 	assert(fd >= 0);
@@ -542,9 +546,6 @@ void ar_print_concise(int fd) {
 
 	// For each member
 	while (lseek(fd, 0, SEEK_CUR) < ar_size) {
-		struct ar_hdr hdr;
-		char name[SARFNAME + 1];
-
 		if (ar_load_hdr(fd, &hdr) == false) {
 			// Report error
 			fprintf(stderr, "Could not load ar_hdr (line %d)\n", __LINE__);
